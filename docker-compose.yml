@@ -1,0 +1,49 @@
+name: sentinelhealth
+
+x-env: &common
+  DATABASE_URL: postgresql+asyncpg://app_user:app-pw-changeme@postgres:5432/sentinel
+  DATABASE_URL_ADMIN: postgresql+asyncpg://sentinel_admin:admin-pw-changeme@postgres:5432/sentinel
+  DATABASE_URL_MIGRATION: postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel
+  JWT_SECRET: ${JWT_SECRET}
+  WORKER_ID_PEPPER: ${WORKER_ID_PEPPER}
+  MONOLITH_URL: http://monolith:8001
+  ENV: dev
+  LOG_LEVEL: INFO
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sentinel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-sentinel}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinel}"]
+      interval: 5s
+      retries: 20
+
+  monolith:
+    build: ./backend
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.monolith:app --host 0.0.0.0 --port 8001 --workers 2"
+    environment: *common
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose: ["8001"]
+
+  bff:
+    build: ./backend
+    command: uvicorn app.bff.app:app --host 0.0.0.0 --port 8000 --workers 2
+    environment: *common
+    depends_on: [monolith]
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 10s
+      retries: 10
+
+volumes:
+  pgdata:
