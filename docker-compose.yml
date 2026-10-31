@@ -7,6 +7,7 @@ x-env: &common
   JWT_SECRET: ${JWT_SECRET}
   WORKER_ID_PEPPER: ${WORKER_ID_PEPPER}
   MONOLITH_URL: http://monolith:8001
+  OLLAMA_URL: http://ollama:11434
   ENV: dev
   LOG_LEVEL: INFO
 
@@ -17,7 +18,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-sentinel}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-sentinel}
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinel}"]
       interval: 5s
@@ -34,7 +36,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    expose: ["8001"]
+    expose:
+      - "8001"
 
   bff:
     build:
@@ -42,12 +45,26 @@ services:
       dockerfile: backend/Dockerfile
     command: uvicorn app.bff.app:app --host 0.0.0.0 --port 8000 --workers 2
     environment: *common
-    depends_on: [monolith]
-    ports: ["8000:8000"]
+    depends_on:
+      - monolith
+    ports:
+      - "8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
       interval: 10s
       retries: 10
 
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollamadata:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: 1
+
 volumes:
   pgdata:
+  ollamadata:

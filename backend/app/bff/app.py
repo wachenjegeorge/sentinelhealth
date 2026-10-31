@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.bff.middleware import TenantMiddleware
 from app.bff.routes_admin import router as admin_router
+from app.bff.routes_assistant import router as assistant_router
 from app.bff.routes_auth import router as auth_router
 from app.bff.routes_facilities import router as facilities_router
 from app.bff.routes_sync import router as sync_router
@@ -20,6 +21,7 @@ app.include_router(auth_router)
 app.include_router(facilities_router)
 app.include_router(sync_router)
 app.include_router(admin_router)
+app.include_router(assistant_router)
 
 
 @app.get("/health")
