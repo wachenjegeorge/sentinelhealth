@@ -7,16 +7,17 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DEFAULT_TIMEOUT=300 \
     PIP_RETRIES=15
 
-COPY pyproject.toml ./
+COPY backend/pyproject.toml ./
 RUN pip install --prefer-binary \
-        --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
-        --extra-index-url https://pypi.org/simple \
+        --index-url https://pypi.org/simple \
         .[dev]
 
-COPY app ./app
-COPY migrations ./migrations
-COPY tests ./tests
-COPY alembic.ini ./
+COPY backend/app ./app
+COPY backend/scripts ./scripts
+COPY backend/migrations ./migrations
+COPY backend/tests ./tests
+COPY backend/alembic.ini ./
+COPY frontend ./frontend
 
 EXPOSE 8000
 CMD ["uvicorn", "app.bff.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

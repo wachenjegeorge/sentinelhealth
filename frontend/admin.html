@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#050912" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>SentinelHealth - Command Center</title>
+<link rel="manifest" href="/static/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/static/icon.svg" />
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #050912; min-height: 100vh; color: #e2e8f0;
+         font-family: ui-sans-serif, system-ui, sans-serif; }
+  .card { background: rgba(17,26,43,.72); border: 1px solid rgba(94,130,180,.18);
+          border-radius: 1rem; backdrop-filter: blur(14px); }
+  .card-title { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+                color: #7b90ad; font-weight: 600; }
+  .heat-cell { border-radius: .5rem; padding: .5rem; text-align: center;
+               font-weight: 700; color: #fff; }
+  .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+           background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+                     100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header class="sticky top-0 z-20 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur">
+  <div class="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
+      <div>
+        <p class="text-base font-semibold">Command Center</p>
+        <p class="text-[11px] text-slate-500" id="headerSub">County-scoped - k &gt;= 5</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="flex items-center gap-1.5 rounded-lg bg-slate-900/70 px-2.5 py-1.5 text-[11px] text-slate-400">
+        <span class="pulse"></span><span id="live">Connecting...</span>
+      </span>
+      <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 px-2.5 py-1.5 text-[11px] text-slate-300">Sign out</button>
+    </div>
+  </div>
+</header>
+<main class="mx-auto max-w-7xl px-4 py-5 space-y-5">
+  <div id="errorBanner" class="hidden card p-4">
+    <p class="text-sm text-rose-300" id="errorText"></p>
+  </div>
+  <section class="grid gap-4 lg:grid-cols-3">
+    <div class="card p-4">
+      <p class="card-title mb-2">Pooled WVI</p>
+      <div class="flex items-center gap-4">
+        <svg viewBox="0 0 200 200" class="h-32 w-32 shrink-0">
+          <circle cx="100" cy="100" r="78" fill="none" stroke="#16223a" stroke-width="16" pathLength="100" stroke-dasharray="75 100" stroke-linecap="round" transform="rotate(135 100 100)" />
+          <circle id="gauge" cx="100" cy="100" r="78" fill="none" stroke="#22d3ee" stroke-width="16" pathLength="100" stroke-dasharray="0 100" stroke-linecap="round" transform="rotate(135 100 100)" />
+          <text id="gaugeVal" x="100" y="105" text-anchor="middle" fill="#f1f5f9" font-size="38" font-weight="800">--</text>
+          <text id="gaugeLvl" x="100" y="130" text-anchor="middle" fill="#64748b" font-size="11" letter-spacing="2">WVI</text>
+        </svg>
+        <div class="space-y-2 flex-1">
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500">Groups</p>
+            <p id="groupCount" class="text-lg font-bold">--</p>
+          </div>
+          <div>
+            <p class="text-[10px] uppercase tracking-widest text-slate-500">Reports</p>
+            <p id="reportCount" class="text-lg font-bold">--</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card p-4 lg:col-span-2">
+      <div class="flex items-center justify-between mb-2">
+        <p class="card-title">Department Ranking</p>
+        <span id="updatedAt" class="text-[10px] text-slate-600"></span>
+      </div>
+      <div id="deptRanking" class="space-y-2"></div>
+    </div>
+  </section>
+  <section class="card p-4">
+    <p class="card-title mb-3">Department Heatmap</p>
+    <div id="heatmap" class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr))"></div>
+  </section>
+</main>
+<script src="/static/auth.js"></script>
+<script src="/static/admin.js"></script>
+</body>
+</html>

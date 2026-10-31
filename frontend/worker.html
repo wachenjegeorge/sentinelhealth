@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#050912" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="SentinelHealth" />
+<title>SentinelHealth - Check-In</title>
+<link rel="manifest" href="/static/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/static/icon.svg" />
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #050912; min-height: 100vh; color: #e2e8f0;
+         font-family: ui-sans-serif, system-ui, sans-serif; }
+  .card { background: rgba(17,26,43,.72); border: 1px solid rgba(94,130,180,.18);
+          border-radius: 1rem; backdrop-filter: blur(14px); }
+  .card-title { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+                color: #7b90ad; font-weight: 600; }
+  input[type="range"] { -webkit-appearance: none; width: 100%; height: 8px;
+    border-radius: 999px; background: #1c2942; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 22px;
+    width: 22px; border-radius: 50%; background: linear-gradient(140deg,#22d3ee,#0ea5e9);
+    border: 2px solid #0b1524; cursor: pointer; }
+  .chip { border: 1px solid #253553; background: #0f1a2c; color: #9db2cd;
+          padding: .45rem .8rem; border-radius: 999px; font-size: .78rem;
+          cursor: pointer; }
+  .chip[data-active="true"] { background: rgba(244,63,94,.16);
+    border-color: #f43f5e; color: #fda4af; }
+  .banner { background: #7f1d1d; color: #fecaca; padding: .5rem 1rem;
+            font-size: .75rem; text-align: center; display: none; }
+  .banner.show { display: block; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div id="offlineBanner" class="banner">Offline - check-ins queued for sync.</div>
+<header class="border-b border-slate-800/60 sticky top-0 z-10 bg-slate-950/80 backdrop-blur">
+  <div class="mx-auto max-w-3xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-2">
+      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
+      <div>
+        <p class="text-sm font-semibold" id="userLabel">...</p>
+        <p class="text-[11px] text-slate-500" id="facilityLabel"></p>
+      </div>
+    </div>
+    <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">Sign out</button>
+  </div>
+</header>
+<main class="mx-auto max-w-3xl px-4 py-5">
+  <div id="result" class="hidden mb-5"></div>
+  <div id="pending" class="hidden mb-4 rounded-xl bg-amber-950/40 border border-amber-700/50 px-4 py-2 text-sm text-amber-200"></div>
+  <form id="form" class="card p-6 space-y-5">
+    <div>
+      <h2 class="text-xl font-semibold">Daily Wellness Check-In</h2>
+      <p class="text-sm text-slate-400 mt-1">Anonymised before it reaches any manager.</p>
+    </div>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div>
+        <label class="card-title block mb-1.5">Department</label>
+        <select id="department" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
+          <option>Emergency Department</option>
+          <option>ICU / Critical Care</option>
+          <option>Maternity</option>
+          <option>Paediatrics</option>
+          <option>Outpatient (OPD)</option>
+          <option>Laboratory</option>
+          <option>Pharmacy</option>
+          <option>Nursing Wards</option>
+          <option>Kitchen &amp; Laundry</option>
+          <option>Community Health</option>
+        </select>
+      </div>
+      <div>
+        <label class="card-title block mb-1.5">Shift</label>
+        <select id="shift" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
+          <option value="day">Day</option>
+          <option value="night">Night</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid gap-5 sm:grid-cols-2">
+      <div>
+        <div class="flex justify-between mb-1.5">
+          <label class="card-title">Fatigue</label>
+          <span class="text-sm font-semibold text-cyan-300"><span id="fatigueVal">5</span>/10</span>
+        </div>
+        <input type="range" id="fatigue" min="1" max="10" value="5" />
+      </div>
+      <div>
+        <div class="flex justify-between mb-1.5">
+          <label class="card-title">Heat Exposure</label>
+          <span class="text-sm font-semibold text-amber-300"><span id="heatVal">5</span>/10</span>
+        </div>
+        <input type="range" id="heat" min="1" max="10" value="5" />
+      </div>
+    </div>
+    <div>
+      <div class="flex justify-between mb-1.5">
+        <label class="card-title">Hours Worked</label>
+        <span class="text-sm font-semibold"><span id="hoursVal">8</span> h</span>
+      </div>
+      <input type="range" id="hours" min="0" max="24" step="0.5" value="8" />
+    </div>
+    <div>
+      <label class="card-title block mb-2">Symptoms (optional)</label>
+      <div id="symptoms" class="flex flex-wrap gap-2"></div>
+    </div>
+    <button type="submit" id="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-slate-950">
+      Submit Check-In
+    </button>
+  </form>
+</main>
+<script src="/static/auth.js"></script>
+<script src="/static/worker.js"></script>
+</body>
+</html>

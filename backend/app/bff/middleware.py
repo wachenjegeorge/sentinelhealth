@@ -1,12 +1,4 @@
-"""The BFF shield: tenant extraction, idempotency-key enforcement.
-
-PUBLIC paths skip auth entirely:
-  - /health, /, /docs, /openapi.json   (liveness + docs)
-  - /api/bff/worker/login              (issues the token; cannot require one)
-
-Every other path requires `Authorization: Bearer <jwt>`.
-Every mutation additionally requires `Idempotency-Key`.
-"""
+"""BFF shield: tenant + role extraction, idempotency-key enforcement."""
 from __future__ import annotations
 
 import uuid
@@ -14,11 +6,11 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from app.db import tenant_ctx
 from app.security import verify_token
 
-PUBLIC_PATHS = {"/health", "/", "/docs", "/openapi.json"}
-PUBLIC_PREFIXES = ("/api/bff/worker/login",)
+PUBLIC_PATHS = {"/health", "/", "/login", "/worker", "/admin", "/sw.js",
+                "/docs", "/openapi.json", "/favicon.ico"}
+PUBLIC_PREFIXES = ("/api/bff/auth/", "/api/bff/facilities", "/static/")
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -33,32 +25,20 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         auth = request.headers.get("authorization", "")
         if not auth.startswith("Bearer "):
-            return JSONResponse(
-                {"detail": "missing bearer token"}, status_code=401
-            )
+            return JSONResponse({"detail": "missing bearer token"}, status_code=401)
         try:
             claims = verify_token(auth[7:])
         except ValueError:
-            return JSONResponse(
-                {"detail": "invalid token"}, status_code=401
-            )
+            return JSONResponse({"detail": "invalid token"}, status_code=401)
 
-        token = tenant_ctx.set(claims["facility_id"])
         request.state.claims = claims
         request.state.request_id = rid
 
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if not request.headers.get("idempotency-key"):
-                tenant_ctx.reset(token)
-                return JSONResponse(
-                    {"detail": "idempotency-key header required"},
-                    status_code=400,
-                )
+                return JSONResponse({"detail": "idempotency-key header required"},
+                                    status_code=400)
 
-        try:
-            r = await call_next(request)
-        finally:
-            tenant_ctx.reset(token)
-
+        r = await call_next(request)
         r.headers["x-request-id"] = rid
         return r

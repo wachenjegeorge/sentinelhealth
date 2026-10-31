@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db import AdminSession
+from fastapi import APIRouter, HTTPException, Request
+
+from app.db import with_tenant
 from app.modules.aggregator import service as agg
 
 router = APIRouter(prefix="/api/bff/admin", tags=["admin"])
 
 
-async def admin_session():
-    async with AdminSession() as s:
-        yield s
-
-
 @router.get("/overview")
-async def overview(request: Request, session: AsyncSession = Depends(admin_session)):
-    if request.state.claims["role"] != "health_officer":
+async def overview(request: Request, window_hours: int = 24):
+    claims = request.state.claims
+    if claims["role"] != "health_officer":
         raise HTTPException(403, "health_officer role required")
-    return await agg.overview(session)
+
+    # role= must be passed, otherwise with_tenant defaults to "worker"
+    # and the RLS policy uses the facility branch instead of the county
+    # branch, causing an officer to see only their own facility.
+    async with with_tenant(claims["facility_id"], role=claims["role"]) as session:
+        return await agg.overview(session, window_hours)

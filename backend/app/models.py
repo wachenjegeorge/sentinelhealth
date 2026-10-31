@@ -15,6 +15,8 @@ class Log(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True,
         server_default=text("gen_random_uuid()"))
     facility_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    county: Mapped[str] = mapped_column(
+        String(40), nullable=False, server_default="Unknown")
     worker_id_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     department: Mapped[str] = mapped_column(String(60), nullable=False)
     shift: Mapped[str] = mapped_column(String(8), nullable=False)

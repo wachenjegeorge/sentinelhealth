@@ -1,0 +1,19 @@
+{
+  "name": "SentinelHealth Kenya",
+  "short_name": "SentinelHealth",
+  "description": "Workforce health early warning for Kenyan healthcare providers",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#050912",
+  "theme_color": "#22d3ee",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

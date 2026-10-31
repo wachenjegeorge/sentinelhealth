@@ -9,10 +9,12 @@ def hash_worker_id(worker_id: str) -> str:
                     worker_id.strip().upper().encode(), hashlib.sha256).hexdigest()
 
 
-def issue_token(sub: str, role: str, facility_id: str, ttl_minutes: int = 720) -> str:
+def issue_token(user_id: str, username: str, role: str,
+                facility_id: str, ttl_minutes: int = 720) -> str:
     now = datetime.now(timezone.utc)
     return jwt.encode({
-        "sub": sub, "role": role, "facility_id": facility_id,
+        "sub": user_id, "username": username, "role": role,
+        "facility_id": facility_id,
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=ttl_minutes)).timestamp()),
     }, settings.jwt_secret, algorithm="HS256")
