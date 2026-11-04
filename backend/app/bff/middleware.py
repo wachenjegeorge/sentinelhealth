@@ -1,16 +1,32 @@
-"""BFF shield: tenant + role extraction, idempotency-key enforcement."""
+"""BFF shield: public path allowlist + auth + idempotency."""
 from __future__ import annotations
 
 import uuid
-
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-
 from app.security import verify_token
 
-PUBLIC_PATHS = {"/health", "/", "/login", "/worker", "/admin", "/sw.js",
-                "/docs", "/openapi.json", "/favicon.ico"}
-PUBLIC_PREFIXES = ("/api/bff/auth/", "/api/bff/facilities", "/static/")
+# Exact paths that do not require an Authorization header
+PUBLIC_PATHS = {
+    "/health", "/", "/login", "/register", "/worker", "/admin",
+    "/admin/users", "/admin/verify", "/admin/incidents",
+    "/profile", "/compliance", "/keph", "/sw.js",
+    "/docs", "/openapi.json", "/favicon.ico",
+}
+
+# API endpoints that do not require an Authorization header (login, signup)
+PUBLIC_ENDPOINTS = {
+    "/api/bff/auth/login",
+    "/api/bff/auth/register",
+    "/api/bff/auth/register/county-officer",
+}
+
+# Prefixes that should bypass auth (static assets, public APIs, and HTML sub-pages)
+PUBLIC_PREFIXES = (
+    "/api/bff/facilities",
+    "/static/",
+    "/admin/intel",  # <--- ADDED: Allows the browser to load the HTML shell for the deep-dive page
+)
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -18,7 +34,13 @@ class TenantMiddleware(BaseHTTPMiddleware):
         rid = request.headers.get("x-request-id") or uuid.uuid4().hex[:12]
         path = request.url.path
 
-        if path in PUBLIC_PATHS or path.startswith(PUBLIC_PREFIXES):
+        is_public = (
+            path in PUBLIC_PATHS
+            or path in PUBLIC_ENDPOINTS
+            or path.startswith(PUBLIC_PREFIXES)
+        )
+        
+        if is_public:
             r = await call_next(request)
             r.headers["x-request-id"] = rid
             return r
@@ -36,8 +58,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if not request.headers.get("idempotency-key"):
-                return JSONResponse({"detail": "idempotency-key header required"},
-                                    status_code=400)
+                return JSONResponse({"detail": "idempotency-key header required"}, status_code=400)
 
         r = await call_next(request)
         r.headers["x-request-id"] = rid

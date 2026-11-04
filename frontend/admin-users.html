@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - User management</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: #050912; min-height: 100vh; color: #e2e8f0;
+         font-family: ui-sans-serif, system-ui, sans-serif; }
+  .card { background: rgba(17,26,43,.72); border: 1px solid rgba(94,130,180,.18);
+          border-radius: 1rem; }
+  .card-title { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+                color: #7b90ad; font-weight: 600; }
+  .btn-sm { padding: .35rem .75rem; border-radius: .4rem; font-size: .75rem;
+            font-weight: 600; cursor: pointer; }
+  .btn-approve { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.5); color: #6ee7b7; }
+  .btn-reject { background: rgba(244,63,94,.15); border: 1px solid rgba(244,63,94,.5); color: #fda4af; }
+  .btn-reset { background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.5); color: #fcd34d; }
+</style></head>
+<body>
+<header class="border-b border-slate-800/60">
+  <div class="mx-auto max-w-6xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-2">
+      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
+      <div><p class="text-sm font-semibold">User Management</p>
+        <p class="text-[11px] text-slate-500" id="countyLabel"></p></div>
+    </div>
+    <div class="flex gap-2">
+      <a href="/admin" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs">Dashboard</a>
+      <a href="/profile" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs">Profile</a>
+      <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs">Sign out</button>
+    </div>
+  </div>
+</header>
+<main class="mx-auto max-w-6xl px-4 py-5 space-y-5">
+  <section class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <p class="card-title">Pending Approval</p>
+      <span id="pendingCount" class="text-xs text-slate-500"></span>
+    </div>
+    <div id="pending" class="space-y-2"></div>
+  </section>
+  <section class="card p-4">
+    <p class="card-title mb-3">All Users in County</p>
+    <div id="users" class="space-y-2"></div>
+  </section>
+</main>
+<script src="/static/auth.js"></script>
+<script>
+(function () {
+  const s = Auth.requireRole("health_officer");
+  if (!s) return;
+  document.getElementById("countyLabel").textContent = s.county + " County";
+  const $ = id => document.getElementById(id);
+
+  async function loadPending() {
+    const r = await Auth.apiFetch("/api/bff/admin/users/pending");
+    if (!r.ok) { $("pending").innerHTML = '<p class="text-sm text-rose-400">Could not load pending users.</p>'; return; }
+    const { pending } = await r.json();
+    $("pendingCount").textContent = pending.length + " awaiting approval";
+    if (!pending.length) {
+      $("pending").innerHTML = '<p class="text-sm text-slate-500">No pending users.</p>';
+      return;
+    }
+    $("pending").innerHTML = pending.map(u =>
+      '<div class="rounded-lg border border-slate-800 p-3 flex flex-wrap items-center justify-between gap-2">' +
+        '<div><p class="font-semibold text-sm">' + u.full_name + ' (' + u.username + ')</p>' +
+        '<p class="text-xs text-slate-500">' + u.role.replace(/_/g, " ") + ' • ' + u.facility_name +
+        (u.primary_department ? ' • ' + u.primary_department : '') + '</p>' +
+        (u.email ? '<p class="text-xs text-slate-600">' + u.email + '</p>' : '') + '</div>' +
+        '<div class="flex gap-2">' +
+        '<button class="btn-sm btn-approve" onclick="approve(\'' + u.id + '\')">Approve</button>' +
+        '<button class="btn-sm btn-reject" onclick="reject(\'' + u.id + '\')">Reject</button>' +
+        '</div></div>'
+    ).join("");
+  }
+
+  async function loadUsers() {
+    const r = await Auth.apiFetch("/api/bff/admin/users");
+    if (!r.ok) return;
+    const { users } = await r.json();
+    $("users").innerHTML = users.map(u =>
+      '<div class="rounded-lg border border-slate-800 p-2.5 flex items-center justify-between gap-2 text-sm">' +
+        '<div><span class="font-medium">' + (u.full_name || u.username) + '</span> ' +
+        '<span class="text-xs text-slate-500">(' + u.username + ')</span>' +
+        '<span class="ml-2 text-[10px] uppercase ' + (u.active ? 'text-emerald-400' : 'text-amber-400') + '">' +
+        (u.active ? 'active' : 'pending') + '</span></div>' +
+        '<button class="btn-sm btn-reset" onclick="resetPw(\'' + u.id + '\')">Reset pw</button>' +
+      '</div>'
+    ).join("");
+  }
+
+  window.approve = async id => {
+    const r = await Auth.apiFetch("/api/bff/admin/users/" + id + "/approve", { method: "POST" });
+    if (r.ok) { loadPending(); loadUsers(); }
+  };
+  window.reject = async id => {
+    if (!confirm("Reject and delete this pending user?")) return;
+    const r = await Auth.apiFetch("/api/bff/admin/users/" + id + "/reject", { method: "POST" });
+    if (r.ok) { loadPending(); loadUsers(); }
+  };
+  window.resetPw = async id => {
+    const pw = prompt("Enter a temporary password (min 8 chars):");
+    if (!pw || pw.length < 8) return;
+    const r = await Auth.apiFetch("/api/bff/admin/users/" + id + "/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_password: pw }),
+    });
+    if (r.ok) alert("Password reset. The user must change it at next login.");
+    else alert("Reset failed.");
+  };
+
+  loadPending(); loadUsers();
+})();
+</script></body></html>

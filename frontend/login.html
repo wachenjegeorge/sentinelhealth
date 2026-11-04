@@ -4,6 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#050912" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="SentinelHealth" />
@@ -12,6 +13,7 @@
 <link rel="apple-touch-icon" href="/static/icon.svg" />
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   body { background: #050912; min-height: 100vh; color: #e2e8f0;
          font-family: ui-sans-serif, system-ui, sans-serif;
@@ -54,20 +56,29 @@
     </div>
     <div id="error" class="err hidden"></div>
     <button type="submit" id="submit" class="btn">Sign in</button>
+
+  <div class="relative py-2">
+    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
+    <div class="relative flex justify-center"><span class="bg-slate-900 px-2 text-[10px] text-slate-500 uppercase">Or</span></div>
+  </div>
+  <div id="g_id_onload" data-client_id="399955673061-l9mro2955u4i8ht2t2hm12cn9bf90aaa.apps.googleusercontent.com" data-callback="handleGoogleLogin"></div>
+  <div class="g_id_signin" data-type="standard" data-size="large" data-theme="filled_black" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left" data-width="320"></div>
+
   </form>
   <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
     <p>Demo credentials:</p>
     <p><code class="text-cyan-400">officer-nairobi</code> / <code class="text-cyan-400">worker-mombasa-1</code></p>
     <p>Password: <code class="text-cyan-400">DemoPass2026!</code></p>
+    <p class="pt-2">No account? <a href="/register" class="text-cyan-400">Create one</a></p>
   </div>
 </div>
 <script src="/static/auth.js"></script>
 <script>
 (function() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/static/sw.js", { scope: "/" }).catch(function(){});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(function(){});
   const existing = Auth.readSession();
   if (existing) {
-    window.location.href = existing.role === "health_officer" ? "/admin" : "/worker";
+    window.location.href = Auth.getRedirectPath(existing.role);
     return;
   }
   const f = document.getElementById("loginForm");
@@ -91,13 +102,33 @@
       }
       const data = await res.json();
       Auth.saveSession(data);
-      window.location.href = data.role === "health_officer" ? "/admin" : "/worker";
+      window.location.href = Auth.getRedirectPath(data.role);
     } catch (err) {
       errBox.textContent = err.message;
       errBox.classList.remove("hidden");
       btn.disabled = false; btn.textContent = "Sign in";
     }
   });
+
+  window.handleGoogleLogin = async (response) => {
+    try {
+      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      const res = await fetch("/api/bff/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ google_sub: payload.sub, email: payload.email, id_token: response.credential })
+      });
+      if (!res.ok) throw new Error("Google login failed");
+      const data = await res.json();
+      Auth.saveSession(data);
+      window.location.href = Auth.getRedirectPath(data.role);
+    } catch (e) {
+      const err = document.getElementById("error");
+      err.textContent = e.message;
+      err.classList.remove("hidden");
+    }
+  };
+
 })();
 </script>
 </body>

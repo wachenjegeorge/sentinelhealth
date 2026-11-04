@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - Approvals</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background-color: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+</style>
+</head>
+<body class="antialiased pb-12">
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-7xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-8 w-8 place-items-center rounded-lg bg-cyan-600 text-sm font-bold text-white">S</div>
+      <div><p class="text-sm font-bold">Verification Queue</p><p class="text-[11px] text-slate-400" id="headerSub">Loading...</p></div>
+    </div>
+    <a href="/admin" class="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">← Back to Dashboard</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-5xl px-4 py-6 space-y-6">
+  <div class="card p-5">
+    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4" id="queue-title">Pending Approvals</h2>
+    <div id="queue-list" class="space-y-3">
+      <p class="text-sm text-slate-500 animate-pulse">Loading queue...</p>
+    </div>
+  </div>
+</main>
+
+<script src="/static/ui.js?v=51"></script>
+<script src="/static/auth.js?v=51"></script>
+<script>
+(function() {
+  const session = Auth.requireRole(["admin", "county_officer", "health_officer", "hospital_head"]);
+  if (!session) return;
+  const $ = id => document.getElementById(id);
+  
+  const roleMap = {
+    "admin": "County Officers",
+    "county_officer": "Hospital Heads",
+    "health_officer": "Hospital Heads",
+    "hospital_head": "Workers"
+  };
+  $("headerSub").textContent = roleMap[session.role];
+  $("queue-title").textContent = "Pending " + roleMap[session.role];
+
+  async function loadQueue() {
+    const el = $("queue-list");
+    try {
+      const res = await Auth.apiFetch("/api/bff/admin/verify/queue");
+      if (!res.ok) return;
+      const d = await res.json();
+      
+      if (!d.queue || d.queue.length === 0) {
+        el.innerHTML = '<p class="text-sm text-slate-500 text-center py-8">No pending approvals. You are all caught up.</p>';
+        return;
+      }
+
+      el.innerHTML = d.queue.map(u => `
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-800 rounded-lg gap-3">
+          <div>
+            <p class="font-bold text-slate-200">${u.full_name || u.username}</p>
+            <p class="text-xs text-slate-400">${u.role.replace('_', ' ').toUpperCase()}</p>
+            <p class="text-xs text-slate-500 mt-1">${u.email || u.phone || ''} ${u.county ? '• ' + u.county : ''} ${u.facility_name ? '• ' + u.facility_name : ''}</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="approve('${u.id}', true)" class="rounded bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white transition">Approve</button>
+            <button onclick="approve('${u.id}', false)" class="rounded bg-slate-700 hover:bg-slate-600 px-4 py-2 text-xs font-bold text-white transition">Reject</button>
+          </div>
+        </div>
+      `).join("");
+    } catch (e) {
+      el.innerHTML = '<p class="text-sm text-rose-400">Failed to load queue.</p>';
+    }
+  }
+
+  window.approve = async (id, isApprove) => {
+    try {
+      const res = await Auth.apiFetch(`/api/bff/auth/verify/${id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+        body: JSON.stringify({ approve: isApprove })
+      });
+      if (res.ok) {
+        UI.toast(isApprove ? "User Approved" : "User Rejected");
+        loadQueue();
+      } else {
+        UI.toast("Failed to verify user.", "error");
+      }
+    } catch (e) {
+      UI.toast("Network error.", "error");
+    }
+  };
+
+  loadQueue();
+})();
+</script>
+</body>
+</html>

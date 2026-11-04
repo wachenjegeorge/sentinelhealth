@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth — KEPH Levels</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: .75rem; }
+</style>
+</head>
+<body class="antialiased pb-12">
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-4xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-8 w-8 place-items-center rounded-lg bg-cyan-600 text-sm font-bold text-white">S</div>
+      <div><p class="text-sm font-bold">Kenya KEPH Framework</p><p class="text-[11px] text-slate-400">Levels 1–6 explained</p></div>
+    </div>
+    <a href="/" class="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">← Back</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-4xl px-4 py-6 space-y-4">
+
+  <p class="text-sm text-slate-400 leading-relaxed mb-4">The Kenya Essential Package for Health (KEPH) organizes the health system into six service-delivery levels. SentinelHealth uses KEPH levels to scope which departments are available at each facility — a Level 2 clinic will only see outpatient departments, while a Level 5 referral hospital sees ICU and specialist units.</p>
+
+  <section class="card p-5 border-l-4 border-l-emerald-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-emerald-400">L1</span><h2 class="text-lg font-bold">Community Health Unit</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: ~5,000 people (~1,000 households)</p>
+    <p class="text-sm text-slate-300">Services: preventive and promotive care delivered by Community Health Promoters (CHPs). Referral to L2/L3 as needed.</p>
+  </section>
+
+  <section class="card p-5 border-l-4 border-l-emerald-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-emerald-400">L2</span><h2 class="text-lg font-bold">Dispensary / Clinic</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: ~10,000 people</p>
+    <p class="text-sm text-slate-300">Services: basic outpatient care, minor procedures, essential medicines. Staffed by nurses and clinical officers.</p>
+  </section>
+
+  <section class="card p-5 border-l-4 border-l-cyan-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-cyan-400">L3</span><h2 class="text-lg font-bold">Health Centre</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: ~30,000 people</p>
+    <p class="text-sm text-slate-300">Services: inpatient maternity, basic surgery, laboratory, and pharmacy. Primary referral point from L2 facilities.</p>
+  </section>
+
+  <section class="card p-5 border-l-4 border-l-cyan-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-cyan-400">L4</span><h2 class="text-lg font-bold">Sub-County Hospital</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: ~100,000 people</p>
+    <p class="text-sm text-slate-300">Services: inpatient and outpatient, surgery, specialized clinics, laboratory, radiology, and emergency care. Departments: ED, maternity, pediatrics, wards, laboratory, pharmacy.</p>
+  </section>
+
+  <section class="card p-5 border-l-4 border-l-amber-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-amber-400">L5</span><h2 class="text-lg font-bold">County Referral Hospital</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: ~1,000,000 people</p>
+    <p class="text-sm text-slate-300">Services: advanced medical treatment, specialist care, referral centre for L4 facilities. Departments: ED, ICU, maternity, pediatrics, wards, laboratory, radiology, kitchen, laundry, waste management.</p>
+  </section>
+
+  <section class="card p-5 border-l-4 border-l-rose-500">
+    <div class="flex items-baseline gap-3 mb-2"><span class="text-2xl font-black text-rose-400">L6</span><h2 class="text-lg font-bold">National / Tertiary Hospital</h2></div>
+    <p class="text-sm text-slate-400 mb-2">Catchment: national</p>
+    <p class="text-sm text-slate-300">Services: highly specialized care and research. Examples: Kenyatta National Hospital, Moi Teaching and Referral Hospital, Kenyatta University Teaching, Referral and Research Hospital.</p>
+  </section>
+
+  <div class="card p-4 border-l-4 border-l-fuchsia-500 mt-6">
+    <p class="text-xs text-slate-400 leading-relaxed"><strong class="text-slate-200">How SentinelHealth uses KEPH:</strong> When a Health Officer creates a shift roster, the department dropdown is filtered by the facility's KEPH level. A worker at a Level 2 clinic cannot select ICU, because the database rejects the combination. This prevents accidental data contamination and keeps dashboards meaningful.</p>
+  </div>
+
+</main>
+</body>
+</html>

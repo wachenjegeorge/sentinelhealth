@@ -15,6 +15,8 @@ from app.config import settings
 
 tenant_ctx: ContextVar[str | None] = ContextVar("tenant", default=None)
 role_ctx: ContextVar[str | None] = ContextVar("role", default=None)
+# NEW: Context variable for the user_id
+user_ctx: ContextVar[str | None] = ContextVar("user", default=None)
 
 app_engine = create_async_engine(
     settings.database_url,
@@ -27,10 +29,6 @@ admin_engine = create_async_engine(
     pool_size=1, max_overflow=1, pool_pre_ping=True, future=True)
 AdminSession = async_sessionmaker(admin_engine, expire_on_commit=False)
 
-# Seed engine - connects as `sentinel` (table owner / superuser) for
-# one-time bootstrap operations: seeding facilities and users. Never
-# used by request handlers. This is intentionally separate from the
-# read-only `sentinel_admin` role so that role stays least-privilege.
 seed_engine = create_async_engine(
     settings.database_url_migration,
     pool_size=1, max_overflow=1, pool_pre_ping=True, future=True)
@@ -49,20 +47,30 @@ def _set_tenant(session, transaction, connection):
     connection.execute(
         text("SELECT set_config('app.facility_id', :t, true)"),
         {"t": facility})
+    
     role = role_ctx.get() or "worker"
     connection.execute(
         text("SELECT set_config('app.role', :r, true)"),
         {"r": role})
+        
+    # NEW: Set user_id if it exists
+    user_id = user_ctx.get()
+    if user_id:
+        connection.execute(
+            text("SELECT set_config('app.user_id', :u, true)"),
+            {"u": user_id})
 
 
 @contextlib.asynccontextmanager
-async def with_tenant(facility_id: str, role: str = "worker") -> AsyncIterator[AsyncSession]:
+async def with_tenant(facility_id: str, role: str = "worker", user_id: str = "") -> AsyncIterator[AsyncSession]:
     t = tenant_ctx.set(facility_id)
     r = role_ctx.set(role)
+    u = user_ctx.set(user_id)  # NEW: Set the user_id
     try:
         async with AppSession() as session:
             async with session.begin():
                 yield session
     finally:
+        user_ctx.reset(u)  # NEW: Clean up
         role_ctx.reset(r)
         tenant_ctx.reset(t)

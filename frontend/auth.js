@@ -1,3 +1,4 @@
+// Shared auth: session storage, role check, authenticated fetch.
 const Auth = (() => {
   const KEY = "sh_session";
 
@@ -34,16 +35,32 @@ const Auth = (() => {
     } catch (e) { return {}; }
   }
 
-  function requireRole(role) {
+  // Determines the correct home page for each role
+  function getRedirectPath(role) {
+    if (role === "admin" || role === "county_officer" || role === "health_officer" || role === "hospital_head") {
+      return "/admin";
+    }
+    return "/worker";
+  }
+
+  function requireRole(roles) {
     const s = readSession();
     if (!s) { window.location.href = "/"; return null; }
-    if (role && s.role !== role) { window.location.href = "/"; return null; }
+    
+    if (roles) {
+      const allowed = Array.isArray(roles) ? roles : [roles];
+      if (!allowed.includes(s.role)) { 
+        // Kick them to their correct dashboard, not the login page
+        window.location.href = getRedirectPath(s.role); 
+        return null; 
+      }
+    }
     return s;
   }
 
   async function apiFetch(url, opts) {
     const s = readSession();
-    if (!s) { window.location.href = "/"; throw new Error("no session"); }
+    if (!s) { window.location.href = "/"; throw new Error("not authenticated"); }
     opts = opts || {};
     opts.headers = opts.headers || {};
     opts.headers["Authorization"] = "Bearer " + s.token;
@@ -51,12 +68,12 @@ const Auth = (() => {
     if (res.status === 401) {
       clearSession();
       window.location.href = "/";
-      throw new Error("expired");
+      throw new Error("session expired");
     }
     return res;
   }
 
   function logout() { clearSession(); window.location.href = "/"; }
 
-  return { readSession, saveSession, clearSession, requireRole, apiFetch, logout };
+  return { readSession, saveSession, clearSession, requireRole, apiFetch, logout, getRedirectPath };
 })();

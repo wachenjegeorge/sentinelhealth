@@ -1,25 +1,12 @@
-"""Six read-only tools. None returns individual worker rows.
-
-This is the privacy contract: the LLM can call only these tools, and
-there is no tool that returns per-person data. The tool registry is
-the enforcement point, not the prompt.
-
-Every tool returns a dict with a `cite` field so the verifier and the
-UI can render provenance.
-"""
+"""Six read-only tools. None returns individual worker rows."""
 from __future__ import annotations
-
 import json
 from typing import Any
-
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.modules.aggregator import service as agg
 
-# Knowledge base: curated, versioned, clinician-reviewed passages.
-# In production this lives in pgvector; for Day 3 it is a static corpus
-# with explicit citations. No LLM generation involved in the KB itself.
+# Knowledge base
 KB = {
     "heat_illness": {
         "source": "OSHA Heat NPRM (2024) / NIOSH REL",
@@ -50,6 +37,16 @@ KB = {
         ),
         "tags": ["acclimatization", "new", "worker", "return", "first", "day"],
     },
+    "fatigue_protocol": {
+        "source": "Kenya MoH HRH Strategy / OSHA Fatigue Management",
+        "passage": (
+            "To respond to fatigue: 1) Enforce a hard stop at 16 hours of continuous work. "
+            "2) Cap consecutive night shifts at 2. 3) Insert 15-minute protected micro-breaks "
+            "every 4 hours. 4) Reassign safety-critical tasks (like dispensing meds or driving) "
+            "to non-fatigued staff if fatigue levels exceed 8/10."
+        ),
+        "tags": ["fatigue", "respond", "manage", "protocol", "tired", "exhaustion", "handle", "burnout"],
+    },
     "burnout_kenya": {
         "source": "Kenya MoH National Guidelines on Workplace Mental Wellness (Oct 2024)",
         "passage": (
@@ -59,7 +56,7 @@ KB = {
             "professionals and trainees. County Health Management Teams are "
             "responsible for implementation."
         ),
-        "tags": ["burnout", "mental", "kenya", "moh", "wellness", "stress"],
+        "tags": ["burnout", "mental", "kenya", "moh", "wellness", "stress", "fatigue"],
     },
     "nurse_burnout": {
         "source": "HRMARS - Burnout in Nurses at a Referral Hospital in Western Kenya",
@@ -102,23 +99,19 @@ KB = {
     },
 }
 
-
 def _cit(result: dict, cite: str) -> dict:
     return {"cite": cite, **result}
 
-
 async def get_dashboard_snapshot(session: AsyncSession, **_) -> dict:
-    """Current RLS-scoped overview: pooled WVI, counties, department ranking."""
     data = await agg.overview(session)
     return _cit({
         "pooled_wvi": data["pooled_wvi"],
         "pooled_level": data["pooled_level"],
         "county_count": data["county_count"],
         "group_count": data["group_count"],
-        "counties": data["counties"][:10],   # top 10 for the LLM context
+        "counties": data["counties"][:10],
         "departments": _rank_departments(data["groups"]),
     }, "live-dashboard")
-
 
 def _rank_departments(groups: list[dict]) -> list[dict]:
     agg: dict[str, dict] = {}
@@ -132,119 +125,55 @@ def _rank_departments(groups: list[dict]) -> list[dict]:
         key=lambda x: -x["wvi"],
     )
 
-
 async def get_county_detail(session: AsyncSession, county: str = "", **_) -> dict:
-    """Per-county breakdown, restricted by RLS to the officer's county."""
-    if not county:
-        return _cit({"error": "county parameter required"}, "live-dashboard")
+    if not county: return _cit({"error": "county parameter required"}, "live-dashboard")
     data = await agg.overview(session)
     match = next((c for c in data["counties"] if c["county"].lower() == county.lower()), None)
     if not match:
-        return _cit({"error": f"no data for county '{county}'",
-                     "available": [c["county"] for c in data["counties"]]},
-                    "live-dashboard")
+        return _cit({"error": f"no data for county '{county}'", "available": [c["county"] for c in data["counties"]]}, "live-dashboard")
     depts = [g for g in data["groups"] if g["county"].lower() == county.lower()]
     return _cit({"county": match, "departments": depts}, "live-dashboard")
 
-
 async def explain_risk(session: AsyncSession, county: str = "", department: str = "", **_) -> dict:
-    """Component breakdown for one county/department cell, if it clears k >= 5."""
     data = await agg.overview(session)
     cells = [g for g in data["groups"]
              if (not county or g["county"].lower() == county.lower())
              and (not department or g["department"].lower() == department.lower())]
-    if not cells:
-        return _cit({"error": "no group clears k>=5 for that filter"}, "live-dashboard")
+    if not cells: return _cit({"error": "no group clears k>=5 for that filter"}, "live-dashboard")
     return _cit({"cells": cells[:5]}, "live-dashboard")
 
-
 async def search_knowledge_base(session: AsyncSession, query: str = "", **_) -> dict:
-    """Keyword search over the curated KB. No LLM generation."""
-    if not query:
-        return _cit({"results": []}, "knowledge-base")
+    if not query: return _cit({"results": []}, "knowledge-base")
     q = query.lower()
     scored = []
     for key, entry in KB.items():
         score = sum(1 for tag in entry["tags"] if tag in q)
-        if score:
-            scored.append((score, entry))
+        if score: scored.append((score, entry))
     scored.sort(key=lambda x: -x[0])
-    return _cit({
-        "query": query,
-        "results": [e for _, e in scored[:3]],
-    }, "knowledge-base")
-
+    return _cit({"query": query, "results": [e for _, e in scored[:3]]}, "knowledge-base")
 
 async def get_risk_outcome_history(session: AsyncSession, county: str = "", **_) -> dict:
-    """Historical outcomes for a county - the label source for model improvement."""
     rows = (await session.execute(text("""
         SELECT county, department, shift, day, predicted_wvi, predicted_level, outcome
-        FROM risk_outcomes
-        WHERE (:c = '' OR county = :c)
+        FROM risk_outcomes WHERE (:c = '' OR county = :c)
         ORDER BY day DESC LIMIT 30
     """), {"c": county})).mappings().all()
-    return _cit({
-        "count": len(rows),
-        "outcomes": [dict(r) | {"day": str(r["day"])} for r in rows],
-    }, "risk-outcomes")
-
+    return _cit({"count": len(rows), "outcomes": [dict(r) | {"day": str(r["day"])} for r in rows]}, "risk-outcomes")
 
 async def list_facilities_in_county(session: AsyncSession, county: str = "", **_) -> dict:
-    """Facilities in the officer's county (from the registry)."""
     rows = (await session.execute(text("""
-        SELECT id, name, keph_level, facility_type
-        FROM facilities
-        WHERE county = :c AND active = true
-        ORDER BY keph_level DESC, name
+        SELECT id, name, keph_level, facility_type FROM facilities
+        WHERE county = :c AND active = true ORDER BY keph_level DESC, name
     """), {"c": county})).mappings().all()
     return _cit({"county": county, "facilities": [dict(r) for r in rows]}, "facility-registry")
 
-
-# ------------------------------------------------------------------
-# Schema exposed to the LLM. Descriptions are written for the model,
-# not the developer: each one says WHEN to call, not just what it does.
-# ------------------------------------------------------------------
 TOOL_SCHEMAS: list[dict] = [
-    {"type": "function", "function": {
-        "name": "get_dashboard_snapshot",
-        "description": "Return the current pooled Workforce Vulnerability Index, "
-                       "top counties by risk, and department ranking. Call this "
-                       "first for any question about the current situation.",
-        "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {
-        "name": "get_county_detail",
-        "description": "Return one county's WVI and per-department breakdown. "
-                       "Only returns counties the caller is authorised to see.",
-        "parameters": {"type": "object", "required": ["county"], "properties": {
-            "county": {"type": "string", "description": "County name, e.g. 'Nairobi'"}}}}},
-    {"type": "function", "function": {
-        "name": "explain_risk",
-        "description": "Return the component scores (fatigue, heat, symptom, "
-                       "staffing, biometric) behind a county/department cell. "
-                       "Call this when the user asks WHY risk is high.",
-        "parameters": {"type": "object", "properties": {
-            "county": {"type": "string"},
-            "department": {"type": "string"}}}}},
-    {"type": "function", "function": {
-        "name": "search_knowledge_base",
-        "description": "Search curated occupational-health passages (OSHA heat, "
-                       "NIOSH acclimatization, Kenya MoH burnout guidelines, KEPH). "
-                       "Call this for any standards or protocol question.",
-        "parameters": {"type": "object", "required": ["query"], "properties": {
-            "query": {"type": "string"}}}}},
-    {"type": "function", "function": {
-        "name": "get_risk_outcome_history",
-        "description": "Return historical predicted-vs-actual outcomes for a "
-                       "county. Call this when asked about prediction accuracy "
-                       "or whether past alerts were followed by interventions.",
-        "parameters": {"type": "object", "properties": {
-            "county": {"type": "string"}}}}},
-    {"type": "function", "function": {
-        "name": "list_facilities_in_county",
-        "description": "List facilities in a county with KEPH level. Call this "
-                       "for questions about facility structure.",
-        "parameters": {"type": "object", "required": ["county"], "properties": {
-            "county": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "get_dashboard_snapshot", "description": "Return current pooled WVI, top counties, department ranking.", "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_county_detail", "description": "Return one county's WVI and per-department breakdown.", "parameters": {"type": "object", "required": ["county"], "properties": {"county": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "explain_risk", "description": "Return component scores behind a county/department cell.", "parameters": {"type": "object", "properties": {"county": {"type": "string"}, "department": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "search_knowledge_base", "description": "Search curated occupational-health passages (OSHA, NIOSH, Kenya MoH).", "parameters": {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "get_risk_outcome_history", "description": "Return historical predicted-vs-actual outcomes for a county.", "parameters": {"type": "object", "properties": {"county": {"type": "string"}}}}},
+    {"type": "function", "function": {"name": "list_facilities_in_county", "description": "List facilities in a county.", "parameters": {"type": "object", "required": ["county"], "properties": {"county": {"type": "string"}}}}},
 ]
 
 REGISTRY = {
@@ -256,20 +185,11 @@ REGISTRY = {
     "list_facilities_in_county": list_facilities_in_county,
 }
 
-# Health officers get everything. Workers get KB search only.
-ROLE_ALLOWLIST = {
-    "health_officer": set(REGISTRY),
-    "worker": {"search_knowledge_base"},
-    "admin": set(REGISTRY),
-}
-
+ROLE_ALLOWLIST = {"health_officer": set(REGISTRY), "worker": {"search_knowledge_base"}, "admin": set(REGISTRY)}
 
 async def dispatch(name: str, args: dict, session: AsyncSession, role: str) -> dict:
-    if name not in REGISTRY:
-        return {"error": f"unknown tool: {name}", "cite": "tool-registry"}
-    if name not in ROLE_ALLOWLIST.get(role, set()):
-        return {"error": f"tool '{name}' not permitted for role '{role}'",
-                "cite": "tool-registry"}
+    if name not in REGISTRY: return {"error": f"unknown tool: {name}", "cite": "tool-registry"}
+    if name not in ROLE_ALLOWLIST.get(role, set()): return {"error": f"tool '{name}' not permitted for role '{role}'", "cite": "tool-registry"}
     try:
         return await REGISTRY[name](session, **args)
     except TypeError as e:

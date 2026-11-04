@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - Create account</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background-color: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 1rem; width: 100%; max-width: 32rem; padding: 2rem; }
+  .field { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 0.6rem 0.8rem; width: 100%; color: white; font-size: 0.9rem; }
+  .field:focus { outline: none; border-color: #22d3ee; }
+  .btn { background: linear-gradient(90deg, #22d3ee, #3b82f6); color: #050912; border-radius: 0.6rem; padding: 0.75rem 1rem; font-weight: 600; width: 100%; cursor: pointer; }
+</style>
+</head>
+<body class="antialiased p-4">
+
+<div class="card space-y-5">
+  <div class="flex items-center gap-3">
+    <div class="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-base font-black text-slate-950">S</div>
+    <div><h1 class="text-lg font-bold">Create your account</h1>
+      <p class="text-xs text-slate-400">Approval by your facility head is required.</p></div>
+  </div>
+
+  <div id="error" class="hidden bg-rose-500/10 border border-rose-500/50 text-rose-400 rounded-lg p-3 text-sm"></div>
+  <div id="success" class="hidden bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 rounded-lg p-3 text-sm"></div>
+
+  <!-- GOOGLE SIGNUP BUTTON -->
+  <div id="google-signup-container">
+    <div id="g_id_onload"
+         data-client_id="399955673061-l9mro2955u4i8ht2t2hm12cn9bf90aaa.apps.googleusercontent.com"
+         data-callback="handleGoogleSignup"
+         data-auto_prompt="false">
+    </div>
+    <div class="g_id_signin w-full flex justify-center" 
+         data-type="standard" data-size="large" data-theme="filled_black" 
+         data-text="signup_with" data-shape="rectangular" data-logo_alignment="left" data-width="340">
+    </div>
+  </div>
+
+  <div class="relative py-2" id="divider">
+    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-700"></div></div>
+    <div class="relative flex justify-center"><span class="bg-[#1e293b] px-2 text-[10px] text-slate-500 uppercase">Or fill manually</span></div>
+  </div>
+
+  <form id="form" class="space-y-3">
+    <div><label class="text-xs uppercase text-slate-400 mb-1 block">Full name</label><input id="full_name" class="field" required></div>
+    <div><label class="text-xs uppercase text-slate-400 mb-1 block">Username</label><input id="username" class="field" required pattern="[a-zA-Z0-9_-]+" title="Letters, numbers, dash, underscore only"></div>
+    <div><label class="text-xs uppercase text-slate-400 mb-1 block">Password (min 8)</label><input id="password" type="password" class="field" required minlength="8"></div>
+    <div><label class="text-xs uppercase text-slate-400 mb-1 block">Facility</label><select id="facility_id" class="field" required></select></div>
+    <div class="grid gap-3 grid-cols-2">
+      <div><label class="text-xs uppercase text-slate-400 mb-1 block">Role</label>
+        <select id="role" class="field">
+          <option value="worker">Worker</option>
+          <option value="county_officer">County Officer</option>
+        </select></div>
+      <div><label class="text-xs uppercase text-slate-400 mb-1 block">Department</label><input id="primary_department" class="field" placeholder="e.g. ICU"></div>
+    </div>
+    <div class="grid gap-3 grid-cols-2">
+      <div><label class="text-xs uppercase text-slate-400 mb-1 block">Email</label><input id="email" type="email" class="field"></div>
+      <div><label class="text-xs uppercase text-slate-400 mb-1 block">Phone</label><input id="phone" class="field" placeholder="+254..."></div>
+    </div>
+    <button type="submit" class="btn mt-2">Create account</button>
+  </form>
+  
+  <p class="text-xs text-center text-slate-500">
+    Already have an account? <a href="/" class="text-cyan-400">Sign in</a>
+  </p>
+</div>
+
+<script src="/static/ui.js?v=120"></script>
+<script src="/static/auth.js?v=120"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+
+  // 1. Fetch facilities to populate the dropdown
+  (async function loadFacilities() {
+    const res = await fetch("/api/bff/facilities");
+    const data = await res.json();
+    $("facility_id").innerHTML = data.facilities
+      .sort((a,b) => a.county.localeCompare(b.county))
+      .map(f => `<option value="${f.id}">${f.name} — ${f.county}</option>`)
+      .join("");
+  })();
+
+  // 2. Google Signup Handler
+  window.handleGoogleSignup = (response) => {
+    try {
+      // Decode the JWT payload (we don't need to verify signature here, the backend does that on login)
+      const base64Url = response.credential.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(window.atob(base64));
+
+      // Auto-fill the form
+      $("full_name").value = payload.name || payload.given_name || "";
+      $("email").value = payload.email || "";
+      
+      // Generate a random username from email if empty
+      if (!$("username").value) {
+        $("username").value = payload.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '') + Math.floor(Math.random()*1000);
+      }
+
+      // Hide the Google button so they don't click it twice
+      $("google-signup-container").classList.add("hidden");
+      $("divider").classList.add("hidden");
+      
+      UI.toast("Google account connected. Please select your facility and submit.");
+      $("password").focus(); // Prompt them to create a local password
+
+    } catch (e) {
+      console.error("Google decode failed", e);
+      UI.toast("Failed to read Google account", "error");
+    }
+  };
+
+  // 3. Handle Form Submission
+  $("form").onsubmit = async (e) => {
+    e.preventDefault();
+    const err = $("error"), ok = $("success");
+    err.classList.add("hidden"); ok.classList.add("hidden");
+
+    const role = $("role").value;
+    const endpoint = role === "county_officer" 
+        ? "/api/bff/auth/register/county-officer" 
+        : "/api/bff/auth/register/worker";
+
+    const body = {
+      username: $("username").value.trim(),
+      password: $("password").value,
+      facility_id: $("facility_id").value,
+      full_name: $("full_name").value.trim(),
+      role: role,
+      email: $("email").value.trim() || null,
+      phone: $("phone").value.trim() || null,
+      primary_department: $("primary_department").value.trim() || null,
+      county: "Nairobi" // Only used if role is county_officer
+    };
+
+    try {
+      const r = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const d = await r.json();
+      
+      if (!r.ok) throw new Error(d.detail || "Registration failed");
+      
+      ok.textContent = "Account created successfully! Wait for your facility head or county officer to approve it.";
+      ok.classList.remove("hidden");
+      $("form").reset();
+      $("google-signup-container").classList.remove("hidden");
+      $("divider").classList.remove("hidden");
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.remove("hidden");
+    }
+  };
+})();
+</script>
+</body>
+</html>

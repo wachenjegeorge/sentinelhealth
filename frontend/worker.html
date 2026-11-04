@@ -2,117 +2,206 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="theme-color" content="#050912" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-title" content="SentinelHealth" />
-<title>SentinelHealth - Check-In</title>
-<link rel="manifest" href="/static/manifest.webmanifest" />
-<link rel="apple-touch-icon" href="/static/icon.svg" />
-<link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - My Health Hub</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  body { background: #050912; min-height: 100vh; color: #e2e8f0;
-         font-family: ui-sans-serif, system-ui, sans-serif; }
-  .card { background: rgba(17,26,43,.72); border: 1px solid rgba(94,130,180,.18);
-          border-radius: 1rem; backdrop-filter: blur(14px); }
-  .card-title { font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
-                color: #7b90ad; font-weight: 600; }
-  input[type="range"] { -webkit-appearance: none; width: 100%; height: 8px;
-    border-radius: 999px; background: #1c2942; outline: none; }
-  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 22px;
-    width: 22px; border-radius: 50%; background: linear-gradient(140deg,#22d3ee,#0ea5e9);
-    border: 2px solid #0b1524; cursor: pointer; }
-  .chip { border: 1px solid #253553; background: #0f1a2c; color: #9db2cd;
-          padding: .45rem .8rem; border-radius: 999px; font-size: .78rem;
-          cursor: pointer; }
-  .chip[data-active="true"] { background: rgba(244,63,94,.16);
-    border-color: #f43f5e; color: #fda4af; }
-  .banner { background: #7f1d1d; color: #fecaca; padding: .5rem 1rem;
-            font-size: .75rem; text-align: center; display: none; }
-  .banner.show { display: block; }
-  .hidden { display: none; }
+  body { background-color: #0B1120; color: #e2e8f0; font-family: 'Outfit', sans-serif; background-image: radial-gradient(circle at 15% 50%, rgba(34, 211, 238, 0.04), transparent 25%), radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.04), transparent 25%); }
+  .card { background: #111827; border: 1px solid #1F2937; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
+  .card-title { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: #64748b; font-weight: 600; }
+  input[type="range"] { -webkit-appearance: none; width: 100%; height: 8px; border-radius: 999px; background: #1e293b; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: linear-gradient(140deg,#22d3ee,#0ea5e9); border: 2px solid #0B1120; cursor: pointer; box-shadow: 0 0 10px rgba(34,211,238,0.4); }
+  .chip { border: 1px solid #334155; background: #1e293b; color: #cbd5e1; padding: .4rem .75rem; border-radius: 999px; font-size: .78rem; cursor: pointer; transition: all .2s; }
+  .chip[data-active="true"] { background: rgba(244,63,94,.2); border-color: #f43f5e; color: #fda4af; }
+  .tab-btn { padding: .75rem 1rem; font-size: .875rem; font-weight: 600; color: #64748b; border-bottom: 2px solid transparent; cursor: pointer; transition: all .2s; }
+  .tab-btn.active { color: #22d3ee; border-bottom-color: #22d3ee; }
 </style>
 </head>
-<body>
-<div id="offlineBanner" class="banner">Offline - check-ins queued for sync.</div>
-<header class="border-b border-slate-800/60 sticky top-0 z-10 bg-slate-950/80 backdrop-blur">
-  <div class="mx-auto max-w-3xl flex items-center justify-between px-4 py-3">
+<body class="antialiased pb-12">
+
+<!-- HEADER -->
+<header class="border-b border-slate-800/60 sticky top-0 z-10 bg-[#0B1120]/90 backdrop-blur-md">
+  <div class="mx-auto max-w-5xl flex items-center justify-between px-4 py-3">
     <div class="flex items-center gap-2">
-      <div class="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
       <div>
-        <p class="text-sm font-semibold" id="userLabel">...</p>
-        <p class="text-[11px] text-slate-500" id="facilityLabel"></p>
+        <p class="text-base font-bold" id="userLabel">Loading...</p>
+        <p class="text-[11px] text-slate-400 font-mono" id="facilityLabel"></p>
       </div>
     </div>
-    <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300">Sign out</button>
+    <div class="flex items-center gap-2">
+      <a href="/profile" class="rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 px-3 py-1.5 text-xs font-medium transition">Profile</a>
+      <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 hover:border-rose-500 hover:text-rose-400 px-3 py-1.5 text-xs font-medium transition">Sign out</button>
+    </div>
   </div>
 </header>
-<main class="mx-auto max-w-3xl px-4 py-5">
-  <div id="result" class="hidden mb-5"></div>
-  <div id="pending" class="hidden mb-4 rounded-xl bg-amber-950/40 border border-amber-700/50 px-4 py-2 text-sm text-amber-200"></div>
-  <form id="form" class="card p-6 space-y-5">
-    <div>
-      <h2 class="text-xl font-semibold">Daily Wellness Check-In</h2>
-      <p class="text-sm text-slate-400 mt-1">Anonymised before it reaches any manager.</p>
-    </div>
-    <div class="grid gap-3 sm:grid-cols-2">
+
+
+<!-- EARLY WARNING BANNER (Hidden by default) -->
+<div id="early-warning" class="hidden bg-gradient-to-r from-rose-900/80 to-rose-600/80 border border-rose-500 rounded-xl p-4 mb-2 flex items-start gap-4 shadow-[0_0_20px_rgba(244,63,94,0.3)]">
+  <div class="text-2xl animate-pulse">🚨</div>
+  <div>
+    <h3 class="text-white font-bold text-sm uppercase tracking-widest">Predictive Early Warning</h3>
+    <p class="text-rose-100 text-sm mt-1" id="early-warning-text"></p>
+  </div>
+</div>
+
+<main class="mx-auto max-w-5xl px-4 py-6 space-y-6">
+
+  <!-- AI HEALTH COACH -->
+  <div class="card p-5 border-indigo-800/40 bg-gradient-to-r from-slate-900 to-indigo-950/20 relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+    <div class="flex items-start gap-4 relative z-10">
+      <div class="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-indigo-500/20 text-indigo-400 text-2xl">🧑‍⚕️</div>
       <div>
-        <label class="card-title block mb-1.5">Department</label>
-        <select id="department" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
-          <option>Emergency Department</option>
-          <option>ICU / Critical Care</option>
-          <option>Maternity</option>
-          <option>Paediatrics</option>
-          <option>Outpatient (OPD)</option>
-          <option>Laboratory</option>
-          <option>Pharmacy</option>
-          <option>Nursing Wards</option>
-          <option>Kitchen &amp; Laundry</option>
-          <option>Community Health</option>
-        </select>
-      </div>
-      <div>
-        <label class="card-title block mb-1.5">Shift</label>
-        <select id="shift" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm">
-          <option value="day">Day</option>
-          <option value="night">Night</option>
-        </select>
+        <p class="text-[10px] uppercase tracking-widest text-indigo-400 font-bold mb-1">Personal AI Health Coach</p>
+        <p id="coach-msg" class="text-sm text-slate-200 leading-relaxed animate-pulse">Analyzing your recent health trends...</p>
       </div>
     </div>
-    <div class="grid gap-5 sm:grid-cols-2">
+  </div>
+
+  <!-- WEARABLE HUB -->
+  <div class="card p-4">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="grid h-10 w-10 place-items-center rounded-full bg-emerald-500/20 text-emerald-400 text-lg">⌚</div>
+        <div>
+          <p class="text-sm font-semibold">Device Link</p>
+          <p class="text-xs text-slate-500" id="sync-status">Not synced today</p>
+        </div>
+      </div>
+      <div class="flex gap-4 text-center">
+        <div><p class="text-[10px] uppercase text-slate-500">Steps</p><p id="w-steps" class="text-lg font-bold text-emerald-400">--</p></div>
+        <div><p class="text-[10px] uppercase text-slate-500">Sleep</p><p id="w-sleep" class="text-lg font-bold text-indigo-400">--</p></div>
+        <div><p class="text-[10px] uppercase text-slate-500">Kcal</p><p id="w-kcal" class="text-lg font-bold text-amber-400">--</p></div>
+      </div>
+      <button onclick="syncDevice()" id="sync-btn" class="rounded-lg bg-slate-800 border border-slate-700 px-4 py-2 text-xs font-semibold hover:border-emerald-500 transition-colors">
+        Sync Device
+      </button>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="border-b border-slate-800 flex gap-2">
+    <button class="tab-btn active" data-target="tab-checkin">Daily Check-In</button>
+    <button class="tab-btn" data-target="tab-schedule">My Schedule</button>
+    <button class="tab-btn" data-target="tab-history">Health History</button>
+  </div>
+
+  <!-- TAB: CHECK-IN -->
+  <section id="tab-checkin" class="space-y-4">
+    <div id="result" class="hidden"></div>
+    <form id="form" class="card p-6 space-y-5">
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label class="card-title block mb-1.5">Department</label>
+          <select id="department" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-cyan-500 outline-none">
+            <!-- Populated by JS based on KEPH -->
+          </select>
+        </div>
+        <div>
+          <label class="card-title block mb-1.5">Shift</label>
+          <select id="shift" class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-cyan-500 outline-none">
+            <option value="day">Day</option>
+            <option value="night">Night</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid gap-5 sm:grid-cols-2">
+        <div>
+          <div class="flex justify-between mb-1.5">
+            <label class="card-title">Fatigue</label>
+            <span class="text-sm font-semibold text-cyan-300"><span id="fatigueVal">5</span>/10</span>
+          </div>
+          <input type="range" id="fatigue" min="1" max="10" value="5" />
+        </div>
+        <div>
+          <div class="flex justify-between mb-1.5">
+            <label class="card-title">Heat Exposure</label>
+            <span class="text-sm font-semibold text-amber-300"><span id="heatVal">5</span>/10</span>
+          </div>
+          <input type="range" id="heat" min="1" max="10" value="5" />
+        </div>
+      </div>
       <div>
         <div class="flex justify-between mb-1.5">
-          <label class="card-title">Fatigue</label>
-          <span class="text-sm font-semibold text-cyan-300"><span id="fatigueVal">5</span>/10</span>
+          <label class="card-title">Hours Worked</label>
+          <span class="text-sm font-semibold"><span id="hoursVal">8</span> h</span>
         </div>
-        <input type="range" id="fatigue" min="1" max="10" value="5" />
+        <input type="range" id="hours" min="0" max="24" step="0.5" value="8" />
       </div>
       <div>
-        <div class="flex justify-between mb-1.5">
-          <label class="card-title">Heat Exposure</label>
-          <span class="text-sm font-semibold text-amber-300"><span id="heatVal">5</span>/10</span>
-        </div>
-        <input type="range" id="heat" min="1" max="10" value="5" />
+        <label class="card-title block mb-2">Symptoms (optional)</label>
+        <div id="symptoms" class="flex flex-wrap gap-2"></div>
+      </div>
+      <button type="submit" id="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-slate-950 hover:brightness-110 transition">
+        Submit Check-In
+      </button>
+    </form>
+  </section>
+
+  <!-- TAB: SCHEDULE -->
+  <section id="tab-schedule" class="hidden space-y-4">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Upcoming Roster</h2>
+        <button onclick="uploadRoster()" class="rounded-lg bg-cyan-900/50 border border-cyan-700/50 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-800/50 transition">📁 Upload HR Roster</button>
+      </div>
+      <div id="scheduleList" class="space-y-3">
+        <p class="text-sm text-slate-500 animate-pulse">Loading schedule...</p>
       </div>
     </div>
-    <div>
-      <div class="flex justify-between mb-1.5">
-        <label class="card-title">Hours Worked</label>
-        <span class="text-sm font-semibold"><span id="hoursVal">8</span> h</span>
+  </section>
+
+  <!-- TAB: HISTORY -->
+  <section id="tab-history" class="hidden space-y-4">
+    <div class="card p-5">
+      <h2 class="text-lg font-semibold mb-4">Recent Check-Ins</h2>
+      <div id="checkinList" class="space-y-3">
+        <p class="text-sm text-slate-500 animate-pulse">Loading history...</p>
       </div>
-      <input type="range" id="hours" min="0" max="24" step="0.5" value="8" />
     </div>
-    <div>
-      <label class="card-title block mb-2">Symptoms (optional)</label>
-      <div id="symptoms" class="flex flex-wrap gap-2"></div>
+    <div class="card p-5">
+      <h2 class="text-lg font-semibold mb-4">Medical History (Private)</h2>
+      <div id="medList" class="space-y-3">
+        <p class="text-sm text-slate-500 animate-pulse">Loading medical records...</p>
+      </div>
     </div>
-    <button type="submit" id="submit" class="w-full rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-slate-950">
-      Submit Check-In
-    </button>
-  </form>
+  </section>
+
 </main>
-<script src="/static/auth.js"></script>
-<script src="/static/worker.js"></script>
+
+<script src="/static/ui.js?v=51"></script>
+<script src="/static/auth.js?v=51"></script>
+<script src="/static/worker.js?v=51"></script>
+<script src="/static/assistant.js?v=51"></script>
+
+<!-- SHIFT REQUEST MODAL -->
+<div id="shift-request-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] hidden items-center justify-center p-4">
+  <div class="bg-[#111827] border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+      <h3 class="text-lg font-bold text-white">Request Shift Change</h3>
+      <button onclick="closeShiftModal()" class="text-slate-400 hover:text-white">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <input type="hidden" id="req-shift-id">
+      <div>
+        <label class="text-[10px] uppercase text-slate-400 mb-1 block">Request Type</label>
+        <select id="req-type" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+          <option value="swap">Swap Shift</option>
+          <option value="leave">Request Leave</option>
+          <option value="sick">Call in Sick</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[10px] uppercase text-slate-400 mb-1 block">Reason</label>
+        <textarea id="req-reason" rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white" placeholder="E.g., Family emergency, severe fatigue, doctor's appointment..."></textarea>
+      </div>
+      <button onclick="submitShiftRequest()" class="w-full rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-2 text-sm transition">Submit Request to Officer</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

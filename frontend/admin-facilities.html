@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - Manage Facilities</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background-color: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+  .field { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 0.6rem 0.8rem; width: 100%; color: white; }
+  .field:focus { outline: none; border-color: #22d3ee; }
+</style>
+</head>
+<body class="antialiased pb-12">
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-5xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/admin" class="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800">← Back</a>
+      <div><p class="text-sm font-bold">Facility Management</p><p class="text-[11px] text-slate-400" id="headerSub">Loading...</p></div>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-5xl px-4 py-6 space-y-6">
+  <div class="grid gap-6 md:grid-cols-3">
+    <!-- Add Form -->
+    <div class="card p-5 md:col-span-1 h-fit">
+      <h2 class="text-sm font-bold text-slate-200 mb-4">Add New Facility</h2>
+      <form id="facForm" class="space-y-3">
+        <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Facility Name</label><input id="f-name" required class="field"></div>
+        <div>
+          <label class="text-[10px] uppercase text-slate-500 mb-1 block">KEPH Level</label>
+          <select id="f-level" class="field">
+            <option value="2">Level 2 - Dispensary</option>
+            <option value="3">Level 3 - Health Centre</option>
+            <option value="4">Level 4 - Sub-County Hospital</option>
+            <option value="5">Level 5 - County Referral</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[10px] uppercase text-slate-500 mb-1 block">Facility Type</label>
+          <select id="f-type" class="field">
+            <option>Dispensary</option><option>Health Centre</option>
+            <option>Sub-County Hospital</option><option>County Referral</option>
+          </select>
+        </div>
+        <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Sub-County (Optional)</label><input id="f-sub" class="field"></div>
+        <button type="submit" class="w-full rounded bg-cyan-600 hover:bg-cyan-500 py-2 text-sm font-bold text-white mt-2">Add Facility</button>
+      </form>
+    </div>
+
+    <!-- List -->
+    <div class="card p-5 md:col-span-2">
+      <h2 class="text-sm font-bold text-slate-200 mb-4">Facilities in Your County</h2>
+      <div id="facList" class="space-y-2 max-h-[600px] overflow-y-auto pr-2"></div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/ui.js?v=100"></script>
+<script src="/static/auth.js?v=100"></script>
+<script>
+(function() {
+  const session = Auth.requireRole(["county_officer", "health_officer", "admin"]);
+  if (!session) return;
+  const $ = id => document.getElementById(id);
+  $("headerSub").textContent = (session.county || "National") + " County";
+
+  async function loadFacilities() {
+    const res = await Auth.apiFetch("/api/bff/facilities?county=" + (session.county || ""));
+    const d = await res.json();
+    $("facList").innerHTML = d.facilities.map(f => `
+      <div class="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
+        <div><p class="font-medium text-slate-200 text-sm">${f.name}</p><p class="text-[10px] text-slate-500">Level ${f.keph_level} • ${f.facility_type}</p></div>
+        <span class="text-[10px] bg-slate-700 px-2 py-1 rounded text-slate-400">${f.id}</span>
+      </div>
+    `).join("");
+  }
+
+  $("facForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const res = await Auth.apiFetch("/api/bff/facilities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+      body: JSON.stringify({
+        name: $("f-name").value, keph_level: parseInt($("f-level").value),
+        facility_type: $("f-type").value, sub_county: $("f-sub").value
+      })
+    });
+    if (res.ok) { UI.toast("Facility added"); $("facForm").reset(); loadFacilities(); }
+    else { UI.toast("Failed to add facility", "error"); }
+  };
+
+  loadFacilities();
+})();
+</script>
+</body>
+</html>

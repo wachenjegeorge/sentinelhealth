@@ -8,9 +8,11 @@ dependencies = [
     "sqlalchemy[asyncio]==2.0.36",
     "asyncpg==0.30.0",
     "alembic==1.14.0",
-    "pydantic==2.10.4",
+    "pydantic[email]==2.10.4",
     "pydantic-settings==2.6.1",
     "python-jose[cryptography]==3.3.0",
+    "google-auth==2.29.0",
+    "requests==2.31.0",
     "httpx==0.28.1",
     "python-dotenv==1.0.1",
 ]

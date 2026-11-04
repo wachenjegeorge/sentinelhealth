@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth — County Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background-color: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+  .card-title { font-size: .75rem; letter-spacing: .05em; text-transform: uppercase; color: #94a3b8; font-weight: 600; }
+  .tab-btn { padding: .75rem 1.25rem; font-size: .875rem; font-weight: 500; color: #64748b;
+             border-bottom: 2px solid transparent; cursor: pointer; transition: all .15s; }
+  .tab-btn.active { color: #22d3ee; border-bottom-color: #22d3ee; }
+  .tab-btn:hover:not(.active) { color: #94a3b8; }
+  .report-md h2 { font-size: 1.05rem; font-weight: 700; color: #fff; margin: 1.25rem 0 .5rem; }
+  .report-md h3 { font-size: .95rem; font-weight: 600; color: #cbd5e1; margin: 1rem 0 .4rem; }
+  .report-md p { color: #cbd5e1; line-height: 1.65; margin-bottom: .75rem; }
+  .report-md ul, .report-md ol { color: #cbd5e1; padding-left: 1.5rem; margin-bottom: .75rem; }
+  .report-md li { margin-bottom: .35rem; line-height: 1.6; }
+  .report-md strong { color: #fff; font-weight: 600; }
+  .report-md code { background: #0f172a; padding: .1rem .35rem; border-radius: .25rem;
+                     font-family: ui-monospace, monospace; font-size: .8rem; color: #22d3ee; }
+  .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+               background: #10b981; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+  table.sortable th { cursor: pointer; user-select: none; }
+  table.sortable th:hover { color: #22d3ee; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #334155;
+             border-top-color: #22d3ee; border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body class="antialiased pb-12">
+
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/admin" class="rounded-md border border-slate-700 hover:bg-slate-800 px-2 py-1 text-xs text-slate-300">← Back</a>
+      <div>
+        <h1 class="text-base font-bold" id="countyTitle">Loading...</h1>
+        <p class="text-[11px] text-slate-400" id="countySub">County Intelligence Center</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <span class="flex items-center gap-2 rounded-md bg-slate-800 px-3 py-1.5 text-xs text-slate-300">
+        <span class="pulse-dot"></span><span>Live Data</span>
+      </span>
+      <button onclick="exportCountyCSV()" class="rounded-md border border-slate-700 hover:bg-slate-800 px-3 py-1.5 text-xs">⬇ Export CSV</button>
+      <button onclick="generateAIReport()" id="genBtn" class="rounded-md bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-1.5 text-xs font-bold">🧠 Generate AI Report</button>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 py-6 space-y-6">
+
+  <!-- KPI Row -->
+  <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5" id="kpiRow">
+    <div class="card p-4">
+      <p class="card-title mb-1">County WVI</p>
+      <div class="flex items-baseline gap-2">
+        <p id="kpi-wvi" class="text-3xl font-bold">--</p>
+        <span id="kpi-level" class="text-xs font-semibold uppercase">--</span>
+      </div>
+    </div>
+    <div class="card p-4">
+      <p class="card-title mb-1">Facilities</p>
+      <p id="kpi-facs" class="text-3xl font-bold">--</p>
+      <p class="text-[10px] text-slate-500 mt-1" id="kpi-facs-sub"></p>
+    </div>
+    <div class="card p-4">
+      <p class="card-title mb-1">Reports</p>
+      <p id="kpi-reports" class="text-3xl font-bold">--</p>
+    </div>
+    <div class="card p-4">
+      <p class="card-title mb-1">Critical Facilities</p>
+      <p id="kpi-crit" class="text-3xl font-bold text-rose-400">--</p>
+    </div>
+    <div class="card p-4">
+      <p class="card-title mb-1">Active Alerts</p>
+      <p id="kpi-alerts" class="text-3xl font-bold text-amber-400">--</p>
+    </div>
+  </section>
+
+  <!-- Tabs -->
+  <div class="border-b border-slate-800 flex gap-1 overflow-x-auto">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="facilities">Facilities</button>
+    <button class="tab-btn" data-tab="trends">Trends &amp; Anomalies</button>
+    <button class="tab-btn" data-tab="report">AI Report</button>
+  </div>
+
+  <!-- Tab: Overview -->
+  <section id="tab-overview" class="space-y-4">
+    <div class="grid gap-4 lg:grid-cols-2">
+      <div class="card p-5">
+        <p class="card-title mb-3">Risk Distribution</p>
+        <div id="riskDistribution"></div>
+      </div>
+      <div class="card p-5">
+        <p class="card-title mb-3">Active Alerts</p>
+        <div id="alertList" class="space-y-2">
+          <p class="text-sm text-slate-500">Loading...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: Facilities -->
+  <section id="tab-facilities" class="hidden">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <p class="card-title">Facilities (sorted by WVI)</p>
+        <input id="facSearch" type="text" placeholder="Search facility..."
+               class="bg-slate-800 border border-slate-700 rounded px-3 py-1.5 text-sm w-48" />
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm sortable" id="facTable">
+          <thead>
+            <tr class="text-left text-[10px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
+              <th class="py-2 px-2" data-sort="name">Facility</th>
+              <th class="py-2 px-2" data-sort="keph">Level</th>
+              <th class="py-2 px-2 text-right" data-sort="reports">Reports</th>
+              <th class="py-2 px-2 text-right" data-sort="fatigue">Fatigue</th>
+              <th class="py-2 px-2 text-right" data-sort="heat">Heat</th>
+              <th class="py-2 px-2 text-right" data-sort="crit">Critical %</th>
+              <th class="py-2 px-2 text-right" data-sort="wvi">WVI</th>
+              <th class="py-2 px-2 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="facBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tab: Trends -->
+  <section id="tab-trends" class="hidden space-y-4">
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <p class="card-title">30-Day WVI Trajectory</p>
+        <span id="trendDirection" class="text-xs font-medium"></span>
+      </div>
+      <div id="trendChart" class="h-48 flex items-end gap-1"></div>
+    </div>
+    <div class="card p-5">
+      <p class="card-title mb-3">Anomaly History</p>
+      <div id="anomalyHistory" class="space-y-2"></div>
+    </div>
+  </section>
+
+  <!-- Tab: AI Report -->
+  <section id="tab-report" class="hidden">
+    <div class="card p-6 border-l-4 border-l-fuchsia-500">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🧠</span>
+          <p class="card-title">AI Intelligence Report</p>
+        </div>
+        <span id="reportEngine" class="text-[10px] text-slate-500 font-mono"></span>
+      </div>
+      <div id="reportBody" class="report-md">
+        <p class="text-slate-500">Click "Generate AI Report" to produce a comprehensive 5-section situation analysis for this county.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="/static/ui.js?v=70"></script>
+<script src="/static/auth.js?v=70"></script>
+<script src="/static/admin-intel.js?v=70"></script>
+</body>
+</html>

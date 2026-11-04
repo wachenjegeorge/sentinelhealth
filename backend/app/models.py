@@ -149,3 +149,28 @@ class RiskOutcome(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()"))
+
+
+class WorkerSchedule(Base):
+    __tablename__ = "worker_schedules"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    facility_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    department: Mapped[str] = mapped_column(String(60), nullable=False)
+    shift_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="scheduled")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+
+
+class MedicalHistory(Base):
+    __tablename__ = "medical_history"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()"))
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    facility_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    record_date: Mapped[date_type] = mapped_column(Date, nullable=False)
+    record_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    restricted_duty: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))

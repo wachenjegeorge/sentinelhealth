@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - My Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background-color: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+  .field { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 0.6rem 0.8rem; width: 100%; color: white; }
+  .field:focus { outline: none; border-color: #22d3ee; }
+</style>
+</head>
+<body class="antialiased pb-12">
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-3xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <a href="/worker" id="backLink" class="text-slate-400 hover:text-white">← Back</a>
+      <p class="text-sm font-bold">My Profile</p>
+    </div>
+    <button onclick="Auth.logout()" class="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-rose-400 hover:bg-slate-800">Sign out</button>
+  </div>
+</header>
+
+<main class="mx-auto max-w-3xl px-4 py-6 space-y-4">
+  <div id="msg" class="hidden rounded-lg p-3 text-sm"></div>
+
+  <section class="card p-5 space-y-3">
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Account Details</p>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div><span class="text-[10px] text-slate-500 uppercase">Username</span><p id="username" class="text-sm font-mono"></p></div>
+      <div><span class="text-[10px] text-slate-500 uppercase">Role</span><p id="role" class="text-sm uppercase text-cyan-400 font-bold"></p></div>
+      <div><span class="text-[10px] text-slate-500 uppercase">Facility</span><p id="facility" class="text-sm"></p></div>
+      <div><span class="text-[10px] text-slate-500 uppercase">County</span><p id="county" class="text-sm"></p></div>
+    </div>
+  </section>
+
+  <section class="card p-5 space-y-3">
+    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Edit Profile</p>
+    <div><label class="text-xs text-slate-500 block mb-1">Full Name</label><input id="full_name" class="field"></div>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <div><label class="text-xs text-slate-500 block mb-1">Phone</label><input id="phone" class="field"></div>
+      <div><label class="text-xs text-slate-500 block mb-1">Occupation</label><input id="occupation" class="field"></div>
+    </div>
+    <button onclick="saveProfile()" class="rounded bg-cyan-600 hover:bg-cyan-500 px-4 py-2 text-sm font-bold text-white">Save Changes</button>
+  </section>
+
+  <section class="card p-5 space-y-3 border-rose-900/50 bg-rose-950/10">
+    <p class="text-xs font-bold text-rose-400 uppercase tracking-widest">Danger Zone</p>
+    <p class="text-xs text-slate-400">Deleting your account will permanently erase your profile and purge your personal data. Check-ins will remain anonymized in the aggregate database.</p>
+    <button onclick="deleteAccount()" class="rounded bg-rose-600 hover:bg-rose-500 px-4 py-2 text-sm font-bold text-white">Delete Account</button>
+  </section>
+</main>
+
+<script src="/static/ui.js?v=100"></script>
+<script src="/static/auth.js?v=100"></script>
+<script>
+(function() {
+  const session = Auth.readSession();
+  if (!session) { window.location.href = "/"; return; }
+  const $ = id => document.getElementById(id);
+
+  if (session.role !== "worker") $("backLink").href = "/admin";
+
+  async function load() {
+    const res = await Auth.apiFetch("/api/bff/auth/me");
+    if (!res.ok) return;
+    const d = await res.json();
+    $("username").textContent = d.username;
+    $("role").textContent = d.role.replace("_", " ");
+    $("facility").textContent = d.facility_id;
+    $("county").textContent = d.county || "—";
+    $("full_name").value = d.full_name || "";
+    $("phone").value = d.phone || "";
+    $("occupation").value = d.occupation || "";
+  }
+
+  window.saveProfile = async () => {
+    const res = await Auth.apiFetch("/api/bff/auth/me", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+      body: JSON.stringify({ full_name: $("full_name").value, phone: $("phone").value, occupation: $("occupation").value })
+    });
+    const m = $("msg");
+    m.className = res.ok ? "block bg-emerald-500/20 text-emerald-300 rounded-lg p-3 text-sm" : "block bg-rose-500/20 text-rose-300 rounded-lg p-3 text-sm";
+    m.textContent = res.ok ? "Profile saved successfully." : "Failed to save profile.";
+    if (res.ok) { UI.toast("Profile saved"); load(); }
+  };
+
+  window.deleteAccount = async () => {
+    const reason = prompt("Please state why you are deleting your account:");
+    if (!reason) return;
+    if (!confirm("Are you absolutely sure? This cannot be undone.")) return;
+
+    const res = await Auth.apiFetch("/api/bff/auth/delete-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+      body: JSON.stringify({ reason })
+    });
+    if (res.ok) {
+      alert("Your account has been deleted. Logging out.");
+      Auth.logout();
+    } else {
+      UI.toast("Failed to delete account.", "error");
+    }
+  };
+
+  load();
+})();
+</script>
+</body>
+</html>

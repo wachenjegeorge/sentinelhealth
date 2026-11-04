@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth - Incident Log</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background-color: #0B1120; color: #e2e8f0; font-family: 'Outfit', sans-serif; }
+  .card { background: #111827; border: 1px solid #1F2937; border-radius: 1rem; }
+</style>
+</head>
+<body class="pb-12">
+<header class="sticky top-0 z-20 border-b border-slate-800 bg-[#0B1120]/90 backdrop-blur-md">
+  <div class="mx-auto max-w-7xl flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-sm font-black text-slate-950">S</div>
+      <div>
+        <p class="text-base font-bold tracking-wide">INCIDENT LOG</p>
+        <p class="text-[11px] text-slate-400 font-mono" id="headerSub">Loading...</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/admin" class="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-[11px] font-medium transition">← Back to Command Center</a>
+    </div>
+  </div>
+</header>
+
+<main class="mx-auto max-w-7xl px-4 py-6 space-y-6">
+  <section class="card p-5">
+    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4">Resolved System Alerts</h2>
+    <div id="resolved-alerts" class="space-y-3">
+      <p class="text-sm text-slate-500 animate-pulse">Loading audit trail...</p>
+    </div>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4">Officer Logged Interventions</h2>
+    <div id="outcomes" class="space-y-3">
+      <p class="text-sm text-slate-500 animate-pulse">Loading interventions...</p>
+    </div>
+  </section>
+</main>
+
+<script src="/static/auth.js?v=9"></script>
+<script>
+(function() {
+  const session = Auth.requireRole("health_officer");
+  if (!session) return;
+  document.getElementById("headerSub").textContent = session.county.toUpperCase() + " COUNTY";
+
+  async function load() {
+    const res = await Auth.apiFetch("/api/bff/admin/incidents");
+    if (!res.ok) return;
+    const d = await res.json();
+
+    const ra = document.getElementById("resolved-alerts");
+    if (d.resolved_alerts.length) {
+      ra.innerHTML = d.resolved_alerts.map(a => `
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center p-3 rounded-lg bg-slate-900/50 border border-slate-800 gap-2">
+          <div>
+            <p class="text-sm font-semibold text-slate-200">${a.department} (${a.shift})</p>
+            <p class="text-xs text-slate-500">${a.ai_protocol}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <span class="text-[10px] uppercase text-emerald-400 border border-emerald-900 bg-emerald-950/30 px-2 py-0.5 rounded">Resolved</span>
+            <p class="text-[10px] text-slate-500 mt-1">${new Date(a.resolved_at).toLocaleString()}</p>
+          </div>
+        </div>
+      `).join("");
+    } else {
+      ra.innerHTML = '<p class="text-sm text-slate-500">No resolved alerts yet.</p>';
+    }
+
+    const o = document.getElementById("outcomes");
+    if (d.outcomes.length) {
+      o.innerHTML = d.outcomes.map(x => `
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center p-3 rounded-lg bg-slate-900/50 border border-slate-800 gap-2">
+          <div>
+            <p class="text-sm font-semibold text-slate-200">${x.department} (${x.shift}) - ${x.outcome.replace('_', ' ').toUpperCase()}</p>
+            <p class="text-xs text-slate-400">${x.notes || "No notes provided"}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-[10px] text-slate-500">${new Date(x.created_at).toLocaleString()}</p>
+          </div>
+        </div>
+      `).join("");
+    } else {
+      o.innerHTML = '<p class="text-sm text-slate-500">No manual interventions logged yet.</p>';
+    }
+  }
+  load();
+})();
+</script>
+</body>
+</html>

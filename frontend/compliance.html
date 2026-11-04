@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SentinelHealth — Privacy &amp; Compliance</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }</script>
+<style>
+  body { background: #0f172a; color: #f8fafc; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: .75rem; }
+</style>
+</head>
+<body class="antialiased pb-12">
+<header class="border-b border-slate-800 bg-slate-900 sticky top-0 z-20">
+  <div class="mx-auto max-w-4xl flex items-center justify-between px-4 py-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-8 w-8 place-items-center rounded-lg bg-cyan-600 text-sm font-bold text-white">S</div>
+      <div><p class="text-sm font-bold">Privacy &amp; Compliance</p><p class="text-[11px] text-slate-400">Kenya Digital Health Act 2023</p></div>
+    </div>
+    <a href="/" class="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800">← Back</a>
+  </div>
+</header>
+
+<main class="mx-auto max-w-4xl px-4 py-6 space-y-4">
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">1. Data Minimisation</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">SentinelHealth collects only the minimum data required for workforce health surveillance: fatigue, heat exposure, shift details, symptom flags, and aggregated wearable metrics. No patient data, no diagnosis codes, no clinical records.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">2. Anonymisation at Ingestion</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">Worker identity is hashed with HMAC-SHA256 using a server-side pepper before any database write. The raw worker ID never leaves the API process. Individual check-ins cannot be re-linked to a person without the pepper, which is held only by the platform operator.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">3. Row-Level Security (RLS)</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">Every tenant-scoped table has <code class="text-cyan-400">FORCE ROW LEVEL SECURITY</code> enabled. An officer in Mombasa cannot see Nairobi's data — enforced by PostgreSQL itself, not application code. The database refuses the query even if the API is compromised.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">4. K-Anonymity (k ≥ 5)</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">Aggregated dashboards suppress any group with fewer than 5 reporters. A department × shift cell with 4 check-ins is mathematically invisible. This prevents identification by inference — even when combined with HR data, the numbers can't single out one person.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">5. Append-Only Audit Trail</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">Every state change is recorded in a hash-chained audit table. Each row's hash includes the previous row's hash, so any tampering invalidates the chain. The application role has INSERT only — no UPDATE, no DELETE — for the audit table.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">6. Right to Erasure</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">Workers may request deletion of their account at any time from their profile page. The system soft-deletes immediately (PII purged, account deactivated) and hard-deletes after the 30-day retention window required by Kenya's data protection regulations.</p>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">7. Regulatory Alignment</h2>
+    <ul class="text-sm text-slate-300 space-y-1 list-disc pl-5">
+      <li>Kenya Digital Health Act (2023) — audit, encryption, access control</li>
+      <li>Digital Health (Health Information Management Procedures) Regulations (2025)</li>
+      <li>Kenya Data Protection Act (2019) — lawfulness, minimisation, accuracy</li>
+      <li>ISO 27799 — Health informatics security management</li>
+    </ul>
+  </section>
+
+  <section class="card p-5">
+    <h2 class="text-lg font-bold mb-2">8. Contact</h2>
+    <p class="text-sm text-slate-300 leading-relaxed">For privacy questions or deletion requests, contact the Data Protection Officer at <span class="text-cyan-400 font-mono">dpo@sentinelhealth.ke</span>.</p>
+  </section>
+
+</main>
+</body>
+</html>

@@ -1,53 +1,56 @@
-"""Layer 2: Ollama agent loop, gated by availability and by the verifier.
-
-Rules enforced here, not in the prompt alone:
-  - The model MUST call at least one tool before producing a final answer.
-  - The verifier checks every number and county before the answer is returned.
-  - Any failure -> return None so the caller falls back to Layer 1.
-"""
+"""Layer 2: Groq agent loop."""
 from __future__ import annotations
-
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.modules.assistant import llm_client, tools, verifier
 
-from app.modules.assistant import ollama_client, tools, verifier
+SYSTEM_PROMPT = """You are the SentinelHealth AI Co-Pilot, an expert in workforce health, 
+occupational safety, and public health surveillance for Kenyan healthcare providers.
 
-SYSTEM_PROMPT = """You are SentinelHealth's analytical assistant for Kenyan
-county health officers. You answer questions about workforce vulnerability
-using ONLY the results of the tools you call.
+YOUR GOAL:
+Provide comprehensive, actionable, and highly professional answers to the Health Officer.
+You have access to real-time facility data via tools. You MUST use these tools to ground every answer.
 
-ABSOLUTE RULES:
-1. You MUST call at least one tool before answering. If you have not called
-   a tool, you have nothing to say.
-2. Never state a number, a county name, or a department name that did not
-   appear in a tool result. No exceptions.
-3. Never mention an individual worker. If asked, refuse and explain that
-   the system operates on k-anonymized aggregates (k>=5).
-4. If the tools return no relevant data, say so politely. A gap in the
-   data is not a reason to guess.
-5. Be concise: 2-3 sentences plus one concrete recommended action.
+RULES OF ENGAGEMENT:
+1. TOOL CALLING: You must call at least one tool before answering. For complex questions, 
+   chain multiple tools (e.g., check dashboard -> explain risk -> search protocol).
+2. STRICT DOMAIN FILTER: You ONLY answer questions related to workforce health, facility risk, 
+   medical protocols, or Kenyan health data. If the user asks an off-topic question (e.g., 
+   coding, politics, general trivia), you must politely decline and say: 
+   "As the SentinelHealth AI, I focus exclusively on workforce health and facility risk. 
+   Please ask me about your county's WVI, staff fatigue, or clinical protocols."
+3. PRIVACY: Never mention individual workers. You operate on aggregated k-anonymity (k>=5).
+4. NO HALLUCINATION: Every number (WVI, fatigue score, count) MUST come from a tool result.
+
+FORMATTING:
+- Use Markdown. 
+- Use **bold** for key metrics (e.g., **WVI 45.2**).
+- Use bullet points for lists (e.g., recommended interventions).
+- Use headers (###) to structure long answers.
+- Be authoritative, concise, and clinical in tone.
 """
 
 MAX_STEPS = 4
 
-
 async def run(session: AsyncSession, question: str, role: str,
               county_hint: str | None = None) -> dict | None:
-    """Return a verified answer dict, or None to signal fallback."""
-    if not await ollama_client.is_available():
+    if not await llm_client.is_available():
         return None
 
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": question
-            + (f"\n(County context: {county_hint})" if county_hint else "")},
+            + (f"\n(Context: The user is the Health Officer for {county_hint} County)" if county_hint else "")},
     ]
     tool_results: list[dict] = []
 
     for _ in range(MAX_STEPS):
         try:
-            resp = await ollama_client.chat(messages, tools=tools.TOOL_SCHEMAS)
-        except Exception:
+            resp = await llm_client.chat(messages, tools=tools.TOOL_SCHEMAS)
+        except Exception as e:
+            import traceback
+            print(f"LLM CHAT FAILED: {type(e).__name__} - {e}")
+            traceback.print_exc()
             return None
 
         msg = resp.get("message", {})
@@ -58,15 +61,15 @@ async def run(session: AsyncSession, question: str, role: str,
             if not draft:
                 return None
             if not tool_results:
-                # Model tried to answer without calling a tool. Reject.
-                return None
+                return None # Must call tools
             ok, reason = verifier.verify(draft, tool_results)
             if not ok:
                 return {"_rejected": reason, "_draft": draft}
             return {
-                "answer": draft, "engine": "ollama", "verified": True,
+                "answer": draft, "engine": "groq", "verified": True,
                 "refusal_reason": None,
-                "tool_calls": [], "tool_results": tool_results,
+                "tool_calls": [{"name": m["function"]["name"], "args": m["function"]["arguments"]} for m in messages if "tool_calls" in m for m in m["tool_calls"]],
+                "tool_results": tool_results,
             }
 
         messages.append(msg)

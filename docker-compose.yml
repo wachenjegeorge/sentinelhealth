@@ -5,6 +5,8 @@ x-env: &common
   DATABASE_URL_ADMIN: postgresql+asyncpg://sentinel_admin:admin-pw-changeme@postgres:5432/sentinel
   DATABASE_URL_MIGRATION: postgresql+asyncpg://sentinel:${POSTGRES_PASSWORD}@postgres:5432/sentinel
   JWT_SECRET: ${JWT_SECRET}
+  GROQ_API_KEY: ${GROQ_API_KEY}
+  GROQ_MODEL: ${GROQ_MODEL}
   WORKER_ID_PEPPER: ${WORKER_ID_PEPPER}
   MONOLITH_URL: http://monolith:8001
   OLLAMA_URL: http://ollama:11434
