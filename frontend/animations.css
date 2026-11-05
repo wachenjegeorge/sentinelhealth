@@ -1,0 +1,84 @@
+/* SentinelHealth — micro-animation library */
+
+/* Fade + slide in up (elements appearing) */
+@keyframes sh-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sh-fade-up { animation: sh-fade-up 0.35s cubic-bezier(.22,.9,.32,1) both; }
+
+/* Fade + slide in from right (toasts, drawers) */
+@keyframes sh-slide-right {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.sh-slide-right { animation: sh-slide-right 0.35s cubic-bezier(.22,.9,.32,1) both; }
+
+/* Scale in (modals, cards) */
+@keyframes sh-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.sh-scale-in { animation: sh-scale-in 0.25s cubic-bezier(.22,.9,.32,1) both; }
+
+/* Staggered list items */
+.sh-stagger > * { opacity: 0; animation: sh-fade-up 0.4s cubic-bezier(.22,.9,.32,1) both; }
+.sh-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.sh-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.sh-stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.sh-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.sh-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.sh-stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.sh-stagger > *:nth-child(7) { animation-delay: 0.26s; }
+.sh-stagger > *:nth-child(8) { animation-delay: 0.30s; }
+.sh-stagger > *:nth-child(n+9) { animation-delay: 0.34s; }
+
+/* Shimmer skeleton loader */
+@keyframes sh-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.sh-skeleton {
+  background: linear-gradient(90deg, #1e293b 0%, #334155 50%, #1e293b 100%);
+  background-size: 200% 100%;
+  animation: sh-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
+
+/* Pulsing alert (for critical cards) */
+@keyframes sh-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.5); }
+  50%      { box-shadow: 0 0 0 8px rgba(225, 29, 72, 0); }
+}
+.sh-pulse-alert { animation: sh-pulse-glow 2s ease-in-out infinite; }
+
+/* Ripple on buttons */
+.sh-ripple { position: relative; overflow: hidden; }
+.sh-ripple::after {
+  content: ''; position: absolute; top: 50%; left: 50%;
+  width: 5px; height: 5px; background: rgba(255,255,255,0.5);
+  opacity: 0; border-radius: 100%; transform: scale(1);
+  pointer-events: none;
+}
+.sh-ripple:active::after {
+  animation: sh-ripple-anim 0.6s ease-out;
+}
+@keyframes sh-ripple-anim {
+  0%   { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(50); opacity: 0; }
+}
+
+/* Number counter (for KPI cards) */
+.sh-count { transition: color 0.3s ease; }
+
+/* Hover lift for interactive cards */
+.sh-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.sh-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* Toast slide-in */
+.sh-toast {
+  animation: sh-slide-right 0.3s cubic-bezier(.22,.9,.32,1) both;
+}

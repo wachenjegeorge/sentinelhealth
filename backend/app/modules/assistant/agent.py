@@ -3,32 +3,8 @@ from __future__ import annotations
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.assistant import llm_client, tools, verifier
+from app.modules.assistant.prompts import prompt_for_role
 
-SYSTEM_PROMPT = """You are the SentinelHealth AI Co-Pilot, an expert in workforce health, 
-occupational safety, and public health surveillance for Kenyan healthcare providers.
-
-YOUR GOAL:
-Provide comprehensive, actionable, and highly professional answers to the Health Officer.
-You have access to real-time facility data via tools. You MUST use these tools to ground every answer.
-
-RULES OF ENGAGEMENT:
-1. TOOL CALLING: You must call at least one tool before answering. For complex questions, 
-   chain multiple tools (e.g., check dashboard -> explain risk -> search protocol).
-2. STRICT DOMAIN FILTER: You ONLY answer questions related to workforce health, facility risk, 
-   medical protocols, or Kenyan health data. If the user asks an off-topic question (e.g., 
-   coding, politics, general trivia), you must politely decline and say: 
-   "As the SentinelHealth AI, I focus exclusively on workforce health and facility risk. 
-   Please ask me about your county's WVI, staff fatigue, or clinical protocols."
-3. PRIVACY: Never mention individual workers. You operate on aggregated k-anonymity (k>=5).
-4. NO HALLUCINATION: Every number (WVI, fatigue score, count) MUST come from a tool result.
-
-FORMATTING:
-- Use Markdown. 
-- Use **bold** for key metrics (e.g., **WVI 45.2**).
-- Use bullet points for lists (e.g., recommended interventions).
-- Use headers (###) to structure long answers.
-- Be authoritative, concise, and clinical in tone.
-"""
 
 MAX_STEPS = 4
 
@@ -38,9 +14,9 @@ async def run(session: AsyncSession, question: str, role: str,
         return None
 
     messages: list[dict] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": prompt_for_role(role)},
         {"role": "user", "content": question
-            + (f"\n(Context: The user is the Health Officer for {county_hint} County)" if county_hint else "")},
+            + (f"\n(Context: the user's role is '{role}', facility is '{county_hint or 'unknown'}')")},
     ]
     tool_results: list[dict] = []
 

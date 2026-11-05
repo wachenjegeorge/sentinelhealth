@@ -50,6 +50,43 @@ class WorkerReg(BaseModel):
     primary_department: str = Field(min_length=2, max_length=60)
 
 
+
+
+class DepartmentHeadReg(BaseModel):
+    username: str = Field(min_length=3, max_length=60, pattern=r"^[a-zA-Z0-9_.-]+$")
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=2, max_length=120)
+    occupation: str = Field(default="Department Head", max_length=80)
+    phone: str = Field(min_length=7, max_length=20)
+    department: str = Field(min_length=2, max_length=60)
+
+
+
+
+@router.post("/register/department-head")
+async def register_department_head(payload: DepartmentHeadReg, request: Request):
+    claims = request.state.claims
+    if claims["role"] != "hospital_head":
+        raise HTTPException(403, "hospital_head role required")
+
+    async with AdminSession() as session:
+        async with session.begin():
+            try:
+                uid = await auth.register_worker(
+                    session, username=payload.username, password=payload.password,
+                    full_name=payload.full_name, occupation=payload.occupation,
+                    phone=payload.phone, facility_id=claims["facility_id"],
+                    primary_department=payload.department,
+                    created_by=claims["sub"])
+            except ValueError as e:
+                raise HTTPException(409, str(e))
+            # Promote the new user to department_head role
+            await session.execute(text(
+                "UPDATE users SET role = 'department_head' WHERE id = :id"
+            ), {"id": uid})
+    return {"ok": True, "status": "pending_head_verification", "user_id": uid}
+
+
 class VerifyPayload(BaseModel):
     approve: bool
     notes: str | None = None

@@ -20,6 +20,7 @@ from app.bff.routes_admin_verify import router as verify_router
 from app.bff.routes_assistant import router as assistant_router
 from app.bff.routes_auth import router as auth_router
 from app.bff.routes_coach import router as coach_router
+from app.bff.routes_department_head import router as dept_head_router
 from app.bff.routes_facilities import router as facilities_router
 from app.bff.routes_impact import router as impact_router
 from app.bff.routes_incidents import router as incidents_router
@@ -66,6 +67,7 @@ app.include_router(assistant_router)
 app.include_router(roster_router)
 app.include_router(simulator_router)
 app.include_router(coach_router)
+app.include_router(dept_head_router)
 app.include_router(wearable_router)
 app.include_router(shift_req_router)
 app.include_router(telemetry_router)
@@ -118,6 +120,11 @@ def admin_incidents_page():
 @app.get("/admin/verify", include_in_schema=False)
 def admin_verify_page():
     return FileResponse(FRONTEND_DIR / "admin-verify.html")
+
+
+@app.get("/dept-head", include_in_schema=False)
+def dept_head_page():
+    return FileResponse(FRONTEND_DIR / "admin-dept-head.html")
 
 
 @app.get("/admin/facilities", include_in_schema=False)

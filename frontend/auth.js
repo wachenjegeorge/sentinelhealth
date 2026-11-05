@@ -40,6 +40,7 @@ const Auth = (() => {
     if (role === "admin" || role === "county_officer" || role === "health_officer" || role === "hospital_head") {
       return "/admin";
     }
+    if (role === "department_head") return "/dept-head";
     return "/worker";
   }
 
