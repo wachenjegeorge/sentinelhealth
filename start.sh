@@ -1,11 +1,35 @@
 #!/bin/sh
-set -e
+# Do NOT use `set -e` — we want the app to start even if migrations fail
 
-echo "Running database migrations..."
-alembic upgrade head
+echo "========================================"
+echo " Starting SentinelHealth on Render"
+echo "========================================"
 
-echo "Seeding facility data..."
-python -m scripts.seed_all_facilities
+echo ""
+echo "--- Running database migrations ---"
+if alembic upgrade head; then
+    echo "✓ Migrations applied successfully"
+else
+    echo "⚠ Migration failed — app will still start, but schema may be outdated"
+    echo "  (Fix DATABASE_URL_MIGRATION on Render if this persists)"
+fi
 
-echo "Starting the application..."
-exec uvicorn app.combined:app --host 0.0.0.0 --port $PORT
+echo ""
+echo "--- Seeding facility data (Level 1-6) ---"
+if python -m scripts.seed_all_facilities; then
+    echo "✓ Facilities seeded"
+else
+    echo "⚠ Facility seed skipped"
+fi
+
+echo ""
+echo "--- Seeding verified test accounts ---"
+if python -m scripts.seed_test_accounts; then
+    echo "✓ Test accounts ready"
+else
+    echo "⚠ Test account seed skipped"
+fi
+
+echo ""
+echo "--- Starting Uvicorn ---"
+exec uvicorn app.combined:app --host 0.0.0.0 --port ${PORT:-8000}
