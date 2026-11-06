@@ -27,6 +27,8 @@ COPY backend/scripts ./scripts
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./
 COPY frontend ./frontend
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
 
 RUN chown -R app:app /app
 USER app
@@ -38,4 +40,4 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE 8000
 
 # fly.toml's [deploy] release_command runs alembic upgrade head
-CMD ["sh", "-c", "uvicorn app.combined:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]
+CMD ["./start.sh"]
