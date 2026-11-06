@@ -172,6 +172,7 @@
         headers: { "Idempotency-Key": Date.now().toString() }
       });
       loadOverview();
+  loadDepartments();
     } catch (e) { console.error(e); }
   };
 
@@ -254,6 +255,7 @@
 
   // ── 10. Init ──
   loadOverview();
+  loadDepartments();
   if (role !== "admin") loadRoster();
   checkApprovals();
   setInterval(loadOverview, 30000);

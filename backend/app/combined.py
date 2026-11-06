@@ -21,6 +21,7 @@ from app.bff.routes_assistant import router as assistant_router
 from app.bff.routes_auth import router as auth_router
 from app.bff.routes_coach import router as coach_router
 from app.bff.routes_department_head import router as dept_head_router
+from app.bff.routes_hospital_depts import router as hospital_depts_router
 from app.bff.routes_facilities import router as facilities_router
 from app.bff.routes_impact import router as impact_router
 from app.bff.routes_incidents import router as incidents_router
@@ -68,6 +69,7 @@ app.include_router(roster_router)
 app.include_router(simulator_router)
 app.include_router(coach_router)
 app.include_router(dept_head_router)
+app.include_router(hospital_depts_router)
 app.include_router(wearable_router)
 app.include_router(shift_req_router)
 app.include_router(telemetry_router)

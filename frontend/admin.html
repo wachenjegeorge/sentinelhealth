@@ -93,6 +93,20 @@
     </section>
   </div>
 
+  
+  <!-- DEPARTMENT MANAGEMENT (Visible only to Hospital Heads) -->
+  <section id="hospital-departments-section" class="hidden card p-5 border-t-4 border-t-indigo-500">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-sm font-bold text-slate-200">Department Management</h2>
+        <p class="text-xs text-slate-500">Assign heads to manage fatigue in specific units</p>
+      </div>
+    </div>
+    <div id="dept-list" class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+      <p class="text-sm text-slate-500 animate-pulse">Loading departments...</p>
+    </div>
+  </section>
+
   <!-- OPERATIONAL TOOLS (Hidden for Admin) -->
   <div id="operational-tools" class="hidden space-y-6">
     <section class="card p-5 border-t-4 border-t-indigo-500">
@@ -130,10 +144,10 @@
 
 </main>
 
-<script src="/static/ui.js?v=70"></script>
-<script src="/static/auth.js?v=70"></script>
-<script src="/static/admin.js?v=70"></script>
-<script src="/static/assistant.js?v=70"></script>
+<script src="/static/ui.js?v=141"></script>
+<script src="/static/auth.js?v=141"></script>
+<script src="/static/admin.js?v=141"></script>
+<script src="/static/assistant.js?v=141"></script>
 
 <!-- COUNTY DEEP DIVE WORKSPACE -->
 <div id="deep-dive-panel" class="fixed inset-0 bg-[#0f172a] z-50 hidden flex-col overflow-y-auto">

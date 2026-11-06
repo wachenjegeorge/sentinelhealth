@@ -11,6 +11,7 @@ from google.auth.transport import requests as google_requests
 from app.audit import append_audit
 from app.db import AdminSession, with_tenant
 from app.modules.auth import service as auth
+from app.modules.auth.role_rules import role_allowed_for_level, department_allowed_for_level
 from app.security import issue_token
 
 router = APIRouter(prefix="/api/bff/auth", tags=["auth"])

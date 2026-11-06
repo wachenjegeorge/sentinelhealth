@@ -1,5 +1,4 @@
 #!/bin/sh
-# Do NOT use `set -e` — we want the app to start even if migrations fail
 
 echo "========================================"
 echo " Starting SentinelHealth on Render"
@@ -10,13 +9,12 @@ echo "--- Running database migrations ---"
 if alembic upgrade head; then
     echo "✓ Migrations applied successfully"
 else
-    echo "⚠ Migration failed — app will still start, but schema may be outdated"
-    echo "  (Fix DATABASE_URL_MIGRATION on Render if this persists)"
+    echo "⚠ Migration failed — app will still start"
 fi
 
 echo ""
 echo "--- Seeding facility data (Level 1-6) ---"
-if python -m scripts.seed_all_facilities; then
+if python scripts/seed_all_facilities.py; then
     echo "✓ Facilities seeded"
 else
     echo "⚠ Facility seed skipped"
@@ -24,7 +22,7 @@ fi
 
 echo ""
 echo "--- Seeding verified test accounts ---"
-if python -m scripts.seed_test_accounts; then
+if python scripts/seed_test_accounts.py; then
     echo "✓ Test accounts ready"
 else
     echo "⚠ Test account seed skipped"
