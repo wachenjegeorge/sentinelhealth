@@ -1,6 +1,9 @@
-"""Add detailed KEPH facility levels and department mappings."""
+"""Add detailed KEPH facility levels and department mappings.
+
+Revision ID: 017_facility_levels
+Revises: 016_department_heads
+"""
 from alembic import op
-import sqlalchemy as sa
 
 revision = "017_facility_levels"
 down_revision = "016_department_heads"
@@ -9,17 +12,29 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add KEPH sub-level for detailed classification
-    op.add_column("facilities", sa.Column("keph_sub_level", sa.String(20), nullable=True))
-    op.add_column("facilities", sa.Column("ownership", sa.String(30), nullable=True,
-                                          server_default="County Government"))
-    op.add_column("facilities", sa.Column("mfl_code", sa.String(20), nullable=True))
+    # Add KEPH sub-level and metadata (idempotent — columns may exist
+    # from an earlier partial attempt)
+    op.execute("""
+        ALTER TABLE facilities
+        ADD COLUMN IF NOT EXISTS keph_sub_level VARCHAR(20)
+    """)
+    op.execute("""
+        ALTER TABLE facilities
+        ADD COLUMN IF NOT EXISTS ownership VARCHAR(30)
+            DEFAULT 'County Government'
+    """)
+    op.execute("""
+        ALTER TABLE facilities
+        ADD COLUMN IF NOT EXISTS mfl_code VARCHAR(20)
+    """)
 
-    # Index for fast lookup by level
-    op.create_index("ix_facilities_county_level", "facilities",
-                    ["county", "keph_level"])
+    # Index — also idempotent
+    op.execute("""
+        CREATE INDEX IF NOT EXISTS ix_facilities_county_level
+        ON facilities(county, keph_level)
+    """)
 
-    # Update existing facilities with a sub-level based on their current level
+    # Backfill — safe: WHERE clause skips already-filled rows
     op.execute("""
         UPDATE facilities SET keph_sub_level =
             CASE keph_level
@@ -34,8 +49,9 @@ def upgrade() -> None:
         WHERE keph_sub_level IS NULL
     """)
 
+
 def downgrade() -> None:
-    op.drop_index("ix_facilities_county_level", table_name="facilities")
-    op.drop_column("facilities", "mfl_code")
-    op.drop_column("facilities", "ownership")
-    op.drop_column("facilities", "keph_sub_level")
+    op.execute("DROP INDEX IF EXISTS ix_facilities_county_level")
+    op.execute("ALTER TABLE facilities DROP COLUMN IF EXISTS mfl_code")
+    op.execute("ALTER TABLE facilities DROP COLUMN IF EXISTS ownership")
+    op.execute("ALTER TABLE facilities DROP COLUMN IF EXISTS keph_sub_level")

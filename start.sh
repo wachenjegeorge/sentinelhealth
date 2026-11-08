@@ -1,15 +1,14 @@
 #!/bin/sh
+set -e
 
 echo "========================================"
 echo " Starting SentinelHealth on Render"
 echo "========================================"
 
-echo ""
-echo "--- DIAGNOSTIC: files present in container? ---"
-ls -la /app/scripts/ 2>&1 || echo "  /app/scripts MISSING"
-ls -la /app/migrations/versions/ 2>&1 || echo "  /app/migrations/versions MISSING"
-echo ""
+# Ensure `from app.db import ...` works in scripts
+export PYTHONPATH=/app
 
+echo ""
 echo "--- Running database migrations ---"
 if alembic upgrade head; then
     echo "✓ Migrations applied successfully"
