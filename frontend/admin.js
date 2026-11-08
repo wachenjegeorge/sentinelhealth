@@ -38,7 +38,7 @@
     try {
       const res = await Auth.apiFetch("/api/bff/assistant/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": "ai-" + Date.now() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "ai-" + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2))) },
         body: JSON.stringify({ question: "Give me a 2-sentence summary of the current situation and recommend one action." })
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
@@ -169,7 +169,7 @@
     try {
       await Auth.apiFetch("/api/bff/admin/alerts/" + id + "/resolve", {
         method: "POST",
-        headers: { "Idempotency-Key": Date.now().toString() }
+        headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) }
       });
       loadOverview();
   loadDepartments();
@@ -199,7 +199,7 @@
     try {
       const res = await Auth.apiFetch("/api/bff/admin/simulate", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) },
         body: JSON.stringify({
           department: "ICU / Critical Care",
           shift: "day",
@@ -251,6 +251,26 @@
         badge.classList.remove("hidden");
       }
     } catch (e) { /* silent */ }
+  }
+
+  async function loadDepartments() {
+    const section = $("hospital-departments-section");
+    if (!section) return;
+    if (role !== "hospital_head") { section.classList.add("hidden"); return; }
+    section.classList.remove("hidden");
+    try {
+      const res = await Auth.apiFetch("/api/bff/hospital/departments");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      const depts = d.departments || [];
+      setHtml("dept-list", depts.length ? depts.map(function(dept) {
+        return '<div class="rounded-lg border border-slate-800 p-3">' +
+          '<p class="text-sm font-semibold text-slate-200">' + dept.name + '</p>' +
+          '<p class="text-[10px] text-slate-500">' + (dept.head_name || 'No head') + '</p>' +
+          '<p class="text-[10px] text-slate-600 mt-1">' + (dept.reports || 0) + ' reports</p>' +
+        '</div>';
+      }).join("") : '<p class="text-sm text-slate-500">No departments.</p>');
+    } catch (e) { section.classList.add("hidden"); }
   }
 
   // ── 10. Init ──

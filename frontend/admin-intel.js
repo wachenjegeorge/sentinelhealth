@@ -357,7 +357,7 @@
     try {
       const res = await Auth.apiFetch(`/api/bff/admin/intel/county/${encodeURIComponent(COUNTY)}/report`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() }
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) }
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const d = await res.json();

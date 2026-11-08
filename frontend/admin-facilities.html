@@ -67,10 +67,11 @@
   const session = Auth.requireRole(["county_officer", "health_officer", "admin"]);
   if (!session) return;
   const $ = id => document.getElementById(id);
-  $("headerSub").textContent = (session.county || "National") + " County";
+  $("headerSub").textContent = session.county ? (session.county + " County") : "National";
 
   async function loadFacilities() {
-    const res = await Auth.apiFetch("/api/bff/facilities?county=" + (session.county || ""));
+    const qs = session.county ? ("?county=" + encodeURIComponent(session.county)) : "";
+    const res = await Auth.apiFetch("/api/bff/facilities" + qs);
     const d = await res.json();
     $("facList").innerHTML = d.facilities.map(f => `
       <div class="flex justify-between items-center p-3 bg-slate-800 rounded-lg">
@@ -84,7 +85,7 @@
     e.preventDefault();
     const res = await Auth.apiFetch("/api/bff/facilities", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+      headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) },
       body: JSON.stringify({
         name: $("f-name").value, keph_level: parseInt($("f-level").value),
         facility_type: $("f-type").value, sub_county: $("f-sub").value

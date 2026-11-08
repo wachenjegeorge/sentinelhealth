@@ -95,7 +95,7 @@
     try {
       const res = await Auth.apiFetch("/api/bff/assistant/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": "deptai-" + Date.now() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": "deptai-" + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2))) },
         body: JSON.stringify({ question: `Summarize the health of my ${d.department} department in 2 sentences and give me one action.` })
       });
       if (!res.ok) throw new Error();
@@ -113,7 +113,7 @@
     try {
       const res = await Auth.apiFetch("/api/bff/dept-head/analyze-queue", {
         method: "POST",
-        headers: { "Idempotency-Key": Date.now().toString() }
+        headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) }
       });
       if (res.ok) {
         const d = await res.json();
@@ -133,7 +133,7 @@
     try {
       const res = await Auth.apiFetch(`/api/bff/dept-head/confirm/${id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) },
         body: JSON.stringify({ action, notes })
       });
       if (res.ok) {
@@ -150,7 +150,7 @@
   window.scheduleOneOnOne = async (id) => {
     try {
       await Auth.apiFetch(`/api/bff/dept-head/checkin/${id}`, {
-        method: "POST", headers: { "Idempotency-Key": Date.now().toString() }
+        method: "POST", headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) }
       });
       UI.toast("1-on-1 scheduled");
     } catch (e) {

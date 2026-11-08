@@ -59,7 +59,7 @@
     };
     try {
       const res = await Auth.apiFetch("/api/bff/sync/checkins", {
-        method: "POST", headers: { "Idempotency-Key": Date.now().toString(), "Content-Type": "application/json" },
+        method: "POST", headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)), "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error("API error");
@@ -68,7 +68,7 @@
       const color = data.level === "Critical" ? "#f43f5e" : data.level === "Moderate" ? "#f59e0b" : "#10b981";
       $("result").className = "mb-5 block card p-5 border-2";
       $("result").style.borderColor = color;
-      $("result").innerHTML = `<h3 class="text-lg font-bold" style="color:${color}">Check-in Recorded: ${data.level} Risk</h3><p class="text-sm text-slate-400 mt-1">WVI Score: ${Math.round(data.personal_score)}</p>`;
+      $("result").innerHTML = `<h3 class="text-lg font-bold" style="color:${color}">Check-in Recorded: ${data.level} Risk</h3><p class="text-sm text-slate-400 mt-1">WVI Score: ${Math.round(data.personal_score ?? data.score ?? data.wvi ?? 0)}</p>`;
       
       fetchCoach(); // Refresh AI Coach with new warning status
       loadDashboard();
@@ -111,7 +111,7 @@
     const btn = $("sync-btn");
     btn.textContent = "Syncing..."; btn.disabled = true;
     try {
-      const res = await Auth.apiFetch("/api/bff/worker/wearable/sync", { method: "POST", headers: { "Idempotency-Key": Date.now().toString() } });
+      const res = await Auth.apiFetch("/api/bff/worker/wearable/sync", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) } });
       if (res.ok) {
         const d = await res.json();
         $("w-steps").textContent = d.steps.toLocaleString();
@@ -131,7 +131,7 @@
   // Upload Roster
   window.uploadRoster = async () => {
     try {
-      const res = await Auth.apiFetch("/api/bff/worker/wearable/schedule/upload", { method: "POST", headers: { "Idempotency-Key": Date.now().toString() } });
+      const res = await Auth.apiFetch("/api/bff/worker/wearable/schedule/upload", { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) } });
       if (res.ok) {
         UI.toast("Roster uploaded successfully!");
         loadDashboard();
@@ -163,7 +163,7 @@
 
     try {
       const res = await Auth.apiFetch("/api/bff/worker/shifts/request", {
-        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+        method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) },
         body: JSON.stringify(payload)
       });
       if (res.ok) {

@@ -65,7 +65,7 @@
   <div class="g_id_signin" data-type="standard" data-size="large" data-theme="filled_black" data-text="sign_in_with" data-shape="rectangular" data-logo_alignment="left" data-width="320"></div>
 
   </form>
-  <div class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
+  <div id="demo-creds" class="text-[11px] text-slate-500 border-t border-slate-800 pt-3 space-y-1">
     <p>Demo credentials:</p>
     <p><code class="text-cyan-400">officer-nairobi</code> / <code class="text-cyan-400">worker-mombasa-1</code></p>
     <p>Password: <code class="text-cyan-400">DemoPass2026!</code></p>
@@ -110,6 +110,13 @@
     }
   });
 
+
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    var dc = document.getElementById("demo-creds");
+    if (dc) dc.style.display = "none";
+  }
+
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) { var dc = document.getElementById("demo-creds"); if (dc) dc.style.display = "none"; }
   window.handleGoogleLogin = async (response) => {
     try {
       const payload = JSON.parse(atob(response.credential.split('.')[1]));

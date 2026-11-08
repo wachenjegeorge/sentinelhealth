@@ -78,7 +78,7 @@
     try {
       const res = await Auth.apiFetch("/api/bff/assistant/ask", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": Date.now().toString() },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2)) },
         body: JSON.stringify({ question: text })
       });
       

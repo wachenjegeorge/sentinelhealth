@@ -48,7 +48,7 @@
 <script src="/static/auth.js"></script>
 <script>
 (function () {
-  const s = Auth.requireRole("health_officer");
+  const s = Auth.requireRole(["county_officer", "admin"]);
   if (!s) return;
   document.getElementById("countyLabel").textContent = s.county + " County";
   const $ = id => document.getElementById(id);

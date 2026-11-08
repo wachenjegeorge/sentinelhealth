@@ -46,7 +46,7 @@
 <script src="/static/auth.js?v=9"></script>
 <script>
 (function() {
-  const session = Auth.requireRole("health_officer");
+  const session = Auth.requireRole(["county_officer", "admin"]);
   if (!session) return;
   document.getElementById("headerSub").textContent = session.county.toUpperCase() + " COUNTY";
 
