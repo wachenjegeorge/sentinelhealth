@@ -55,15 +55,17 @@ async def sync_checkin(payload: CheckInPayload, request: Request,
                 await session.execute(text(
                     "UPDATE logs SET verification_status = 'pending' WHERE id = :id"
                 ), {"id": log_id})
+                from app.security import hash_worker_id as _hash
                 await session.execute(text("""
                     INSERT INTO fatigue_confirmations
-                        (facility_id, department, worker_username,
-                         worker_display_name, fatigue, heat_exposure,
-                         shift, status, log_id)
+                        (facility_id, department, worker_id_hash,
+                         worker_username, worker_display_name,
+                         fatigue, heat_exposure, shift, status, log_id)
                     VALUES
-                        (:f, :d, :wu, :wd, :fat, :heat, :sh, 'pending', :lid)
+                        (:f, :d, :wh, :wu, :wd, :fat, :heat, :sh, 'pending', :lid)
                 """), {
                     "f": facility_id, "d": payload.department,
+                    "wh": _hash(worker_id),
                     "wu": worker_id, "wd": worker_id,
                     "fat": payload.fatigue, "heat": payload.heat_exposure,
                     "sh": payload.shift, "lid": log_id,

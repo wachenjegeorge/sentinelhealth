@@ -61,7 +61,8 @@ async def run(session: AsyncSession, question: str, role: str,
             result = await tools.dispatch(name, args, session, role)
             tool_results.append(result)
             messages.append({
-                "role": "tool", "tool_name": name,
+                "role": "tool",
+                "tool_call_id": call.get("id") or f"call_{name}",
                 "content": json.dumps(result)[:6000],
             })
 

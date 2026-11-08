@@ -60,9 +60,18 @@ async def chat(messages: list[dict], tools: list[dict] | None = None) -> dict:
                 "content": msg.get("content") or "",
             }
             if msg.get("tool_calls"):
+                # Groq/OpenAI require id + type when assistant message is
+                # sent back in a subsequent turn. Preserve them verbatim.
                 normalized["tool_calls"] = [
-                    {"function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]}}
-                    for tc in msg["tool_calls"]
+                    {
+                        "id": tc.get("id") or f"call_{i}",
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"],
+                        },
+                    }
+                    for i, tc in enumerate(msg["tool_calls"])
                 ]
             return {"message": normalized}
         except Exception as e:
