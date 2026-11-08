@@ -18,6 +18,7 @@ PUBLIC_PATHS = {
 PUBLIC_ENDPOINTS = {
     "/api/bff/auth/login",
     "/api/bff/auth/register",
+    "/api/bff/auth/register/worker",
     "/api/bff/auth/register/county-officer",
 }
 

@@ -1,5 +1,5 @@
 (function() {
-  const session = Auth.requireRole(["admin", "county_officer", "health_officer", "hospital_head"]);
+  const session = Auth.requireRole(["admin", "county_officer", "hospital_head"]);
   if (!session) return;
   const $ = id => document.getElementById(id);
   const role = session.role;

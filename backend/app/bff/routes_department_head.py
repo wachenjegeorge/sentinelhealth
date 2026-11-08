@@ -178,12 +178,26 @@ async def confirm_report(confirmation_id: str, payload: ConfirmPayload, request:
 
     new_status = "confirmed" if payload.action == "confirm" else "denied"
     async with with_tenant(claims["facility_id"], role="department_head", user_id=claims["sub"]) as session:
+        # Look up the linked log
+        row = (await session.execute(text("""
+            SELECT log_id FROM fatigue_confirmations
+            WHERE id = :id AND facility_id = :f
+        """), {"id": confirmation_id, "f": claims["facility_id"]})).mappings().first()
+
+        # Update the queue row
         await session.execute(text("""
             UPDATE fatigue_confirmations
             SET status = :s, confirmed_by = :by, confirmed_at = now(), notes = :n
             WHERE id = :id AND facility_id = :f
         """), {"s": new_status, "by": claims["sub"], "n": payload.notes,
                "id": confirmation_id, "f": claims["facility_id"]})
+
+        # Mirror to logs.verification_status so agg_logs respects the decision
+        if row and row["log_id"]:
+            await session.execute(text("""
+                UPDATE logs SET verification_status = :v, verified_by = :by, verified_at = now()
+                WHERE id = :lid
+            """), {"v": new_status, "by": claims["sub"], "lid": row["log_id"]})
     return {"ok": True, "status": new_status}
 
 
@@ -197,3 +211,109 @@ async def schedule_checkin(confirmation_id: str, request: Request):
             WHERE id = :id
         """), {"id": confirmation_id})
     return {"ok": True}
+
+
+# ── Anomaly Alert Triage ────────────────────────────────
+@router.get("/alerts")
+async def get_dept_alerts(request: Request):
+    """Active/acknowledged/escalated alerts assigned to this dept head."""
+    claims = _require_dept_head(request)
+    async with with_tenant(claims["facility_id"], role="department_head",
+                           user_id=claims["sub"]) as session:
+        dept = (await session.execute(text(
+            "SELECT primary_department FROM users WHERE id = :id"),
+            {"id": claims["sub"]})).scalar()
+
+        rows = (await session.execute(text("""
+            SELECT id, department, shift, alert_type, severity, details,
+                   ai_protocol, status, assigned_to_level,
+                   acknowledged_at, created_at, escalation_chain
+            FROM autonomous_alerts
+            WHERE facility_id = :f AND department = :d
+              AND status IN ('active', 'acknowledged', 'escalated')
+              AND assigned_to_level = 'department_head'
+            ORDER BY
+              CASE status WHEN 'active' THEN 0 WHEN 'acknowledged' THEN 1 ELSE 2 END,
+              created_at DESC
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+
+    return {"alerts": [
+        dict(r) | {
+            "created_at": r["created_at"].isoformat(),
+            "acknowledged_at": r["acknowledged_at"].isoformat() if r["acknowledged_at"] else None,
+            "escalation_chain": r["escalation_chain"] or [],
+        } for r in rows
+    ]}
+
+
+class TriagePayload(BaseModel):
+    action: str  # acknowledge / false_positive / escalate
+    notes: str | None = None
+    reason: str | None = None
+
+
+@router.post("/alerts/{alert_id}/triage")
+async def triage_alert(alert_id: str, payload: TriagePayload, request: Request):
+    """Dept head action on an alert:
+    - acknowledge: takes ownership, keeps in active triage
+    - false_positive: closes with reason, feeds back into anomaly_engine tuning
+    - escalate: pushes to hospital_head with notes
+    """
+    claims = _require_dept_head(request)
+    if payload.action not in ("acknowledge", "false_positive", "escalate"):
+        raise HTTPException(400, "invalid action")
+
+    import json
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    async with with_tenant(claims["facility_id"], role="department_head",
+                           user_id=claims["sub"]) as session:
+        existing = (await session.execute(text("""
+            SELECT escalation_chain FROM autonomous_alerts
+            WHERE id = :id AND facility_id = :f
+        """), {"id": alert_id, "f": claims["facility_id"]})).mappings().first()
+        if not existing:
+            raise HTTPException(404, "alert not found")
+
+        chain = existing["escalation_chain"] or []
+        chain.append({
+            "at": now_iso, "by": claims["sub"], "role": "department_head",
+            "action": payload.action, "notes": payload.notes or payload.reason,
+        })
+
+        if payload.action == "acknowledge":
+            await session.execute(text("""
+                UPDATE autonomous_alerts
+                SET status = 'acknowledged', acknowledged_by = :by,
+                    acknowledged_at = now(), escalation_chain = :chain::jsonb
+                WHERE id = :id AND facility_id = :f
+            """), {"by": claims["sub"], "chain": json.dumps(chain),
+                   "id": alert_id, "f": claims["facility_id"]})
+        elif payload.action == "false_positive":
+            if not payload.reason:
+                raise HTTPException(422, "reason required for false_positive")
+            await session.execute(text("""
+                UPDATE autonomous_alerts
+                SET status = 'false_positive',
+                    false_positive_reason = :r,
+                    acknowledged_by = :by, acknowledged_at = now(),
+                    escalation_chain = :chain::jsonb
+                WHERE id = :id AND facility_id = :f
+            """), {"r": payload.reason, "by": claims["sub"],
+                   "chain": json.dumps(chain),
+                   "id": alert_id, "f": claims["facility_id"]})
+        else:  # escalate
+            await session.execute(text("""
+                UPDATE autonomous_alerts
+                SET status = 'escalated',
+                    assigned_to_level = 'hospital_head',
+                    assigned_to_user_id = NULL,
+                    resolution_notes = :n,
+                    escalation_chain = :chain::jsonb
+                WHERE id = :id AND facility_id = :f
+            """), {"n": payload.notes or "",
+                   "chain": json.dumps(chain),
+                   "id": alert_id, "f": claims["facility_id"]})
+
+    return {"ok": True, "action": payload.action, "new_status": payload.action}

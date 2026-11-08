@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/bff/admin/incidents", tags=["incidents"])
 @router.get("")
 async def list_incidents(request: Request):
     claims = request.state.claims
-    if claims["role"] != "health_officer":
+    if claims["role"] != "county_officer":
         raise HTTPException(403, "health_officer role required")
 
     async with with_tenant(claims["facility_id"], role=claims["role"], user_id=claims["sub"]) as session:

@@ -24,7 +24,7 @@ class CreateFacilityPayload(BaseModel):
 @router.post("")
 async def create_facility(payload: CreateFacilityPayload, request: Request):
     claims = request.state.claims
-    if claims["role"] not in ("county_officer", "health_officer", "admin"):
+    if claims["role"] not in ("county_officer", "county_officer", "admin"):
         raise HTTPException(403, "Only officers can add facilities")
 
     async with AdminSession() as session:

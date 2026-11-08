@@ -16,6 +16,25 @@ from app.security import issue_token
 
 router = APIRouter(prefix="/api/bff/auth", tags=["auth"])
 
+# ── Login rate limiting (in-memory, single worker) ─────────────
+from collections import defaultdict
+import time as _time
+
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_RATE_WINDOW = 60
+_RATE_MAX = 5
+
+
+def _check_login_rate(request: Request, username: str) -> None:
+    key = f"{(request.client.host if request.client else 'unknown')}:{username}"
+    now = _time.time()
+    _login_attempts[key] = [t for t in _login_attempts[key] if now - t < _RATE_WINDOW]
+    if len(_login_attempts[key]) >= _RATE_MAX:
+        raise HTTPException(429, "Too many login attempts. Try again in 60 seconds.")
+    _login_attempts[key].append(now)
+
+
+
 
 # ── Request/Response Models ─────────────────────────────────────
 
@@ -49,6 +68,7 @@ class WorkerReg(BaseModel):
     occupation: str = Field(min_length=2, max_length=80)
     phone: str = Field(min_length=7, max_length=20)
     primary_department: str = Field(min_length=2, max_length=60)
+    facility_id: str | None = None
 
 
 
@@ -108,7 +128,8 @@ class GoogleAuthPayload(BaseModel):
 
 # ── Login ────────────────────────────────────────────────────────
 @router.post("/login")
-async def login(payload: LoginPayload):
+async def login(payload: LoginPayload, request: Request):
+    _check_login_rate(request, payload.username)
     async with AdminSession() as session:
         async with session.begin():
             result = await auth.authenticate(session, payload.username, payload.password)
@@ -119,7 +140,8 @@ async def login(payload: LoginPayload):
                 {"id": result.user_id})).scalar()
 
     token = issue_token(user_id=result.user_id, username=result.username,
-                        role=result.role, facility_id=result.facility_id)
+                        role=result.role, facility_id=result.facility_id,
+                        county=result.county)
     return {
         "access_token": token, "token_type": "bearer",
         "role": result.role, "facility_id": result.facility_id,
@@ -178,7 +200,8 @@ async def google_auth(payload: GoogleAuthPayload):
 
     token = issue_token(
         user_id=user_row["id"], username=user_row["username"],
-        role=user_row["role"], facility_id=user_row["facility_id"]
+        role=user_row["role"], facility_id=user_row["facility_id"],
+        county=county
     )
     return {
         "access_token": token, "token_type": "bearer",
@@ -205,7 +228,7 @@ async def register_county_officer(payload: CountyOfficerReg):
 @router.post("/register/hospital-head")
 async def register_hospital_head(payload: HospitalHeadReg, request: Request):
     claims = request.state.claims
-    if claims["role"] not in ("county_officer", "health_officer"):
+    if claims["role"] not in ("county_officer", "county_officer"):
         raise HTTPException(403, "county_officer role required")
 
     async with AdminSession() as session:
@@ -231,9 +254,24 @@ async def register_hospital_head(payload: HospitalHeadReg, request: Request):
 
 @router.post("/register/worker")
 async def register_worker(payload: WorkerReg, request: Request):
-    claims = request.state.claims
-    if claims["role"] != "hospital_head":
-        raise HTTPException(403, "hospital_head role required")
+    """Self-registration OR hospital_head/dept_head-invited.
+
+    - Self-register: no auth, facility_id in payload, ends in pending dept_head queue.
+    - Invited: hospital_head or department_head is caller, uses their facility.
+    """
+    claims = getattr(request.state, "claims", None)
+
+    if claims:
+        caller_role = claims["role"]
+        if caller_role not in ("hospital_head", "department_head"):
+            raise HTTPException(403, "hospital_head or department_head required to invite workers")
+        facility_id = claims["facility_id"]
+        created_by = claims["sub"]
+    else:
+        if not payload.facility_id:
+            raise HTTPException(422, "facility_id is required for self-registration")
+        facility_id = payload.facility_id
+        created_by = "self-register"
 
     async with AdminSession() as session:
         async with session.begin():
@@ -241,12 +279,12 @@ async def register_worker(payload: WorkerReg, request: Request):
                 uid = await auth.register_worker(
                     session, username=payload.username, password=payload.password,
                     full_name=payload.full_name, occupation=payload.occupation,
-                    phone=payload.phone, facility_id=claims["facility_id"],
+                    phone=payload.phone, facility_id=facility_id,
                     primary_department=payload.primary_department,
-                    created_by=claims["sub"])
+                    created_by=created_by)
             except ValueError as e:
                 raise HTTPException(409, str(e))
-    return {"ok": True, "status": "pending_head_verification", "user_id": uid}
+    return {"ok": True, "status": "pending_dept_head_verification", "user_id": uid}
 
 
 # ── Verification ────────────────────────────────────────────────
@@ -268,7 +306,7 @@ async def verify_user(user_id: str, payload: VerifyPayload, request: Request):
 
             if caller_role == "admin" and target_role == "county_officer":
                 pass
-            elif caller_role in ("county_officer", "health_officer") and target_role == "hospital_head":
+            elif caller_role in ("county_officer", "county_officer") and target_role == "hospital_head":
                 caller_county = (await session.execute(text(
                     "SELECT county FROM facilities WHERE id = :id"),
                     {"id": claims["facility_id"]})).scalar()

@@ -7,7 +7,7 @@ router = APIRouter(prefix="/api/bff/admin/impact", tags=["impact"])
 @router.get("")
 async def get_impact(request: Request):
     claims = request.state.claims
-    async with with_tenant(claims["facility_id"], role="health_officer", user_id=claims["sub"]) as session:
+    async with with_tenant(claims["facility_id"], role="county_officer", user_id=claims["sub"]) as session:
         # Count resolved alerts (interventions)
         interventions = (await session.execute(text("""
             SELECT count(*) FROM autonomous_alerts WHERE facility_id = :f AND status = 'resolved'

@@ -118,7 +118,49 @@
       if (res.ok) {
         const d = await res.json();
         UI.toast("AI triage complete: " + d.analyzed + " reports analyzed");
-        load();
+      
+  async function loadAlerts() {
+    try {
+      const res = await Auth.apiFetch("/api/bff/dept-head/alerts");
+      if (!res.ok) return;
+      const d = await res.json();
+      const alerts = d.alerts || [];
+      if ($("alert-count")) $("alert-count").textContent = alerts.length + " active";
+      const list = $("alert-list");
+      if (!list) return;
+      if (alerts.length === 0) {
+        list.innerHTML = '<p class="text-sm text-slate-500 text-center py-4">No active anomalies.</p>';
+        return;
+      }
+      list.innerHTML = alerts.map(a => {
+        const sev = a.severity === "critical" ? "rose" : "amber";
+        const badge = a.status === "escalated"
+          ? '<span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded">Escalated</span>'
+          : a.status === "acknowledged"
+            ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">Acknowledged</span>'
+            : '<span class="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded animate-pulse">Active</span>';
+        return `
+          <div class="p-3 bg-slate-800/60 border border-slate-700 rounded-lg">
+            <div class="flex justify-between items-start mb-1">
+              <div>
+                <p class="text-xs font-bold text-${sev}-400 uppercase tracking-widest">${(a.alert_type||"").replace("_"," ")}</p>
+                <p class="text-sm font-medium text-slate-200">${a.department} (${a.shift})</p>
+              </div>
+              ${badge}
+            </div>
+            <p class="text-xs text-slate-400 mb-2">${a.ai_protocol || ""}</p>
+            ${a.status === "active" ? `
+              <div class="flex gap-2">
+                <button onclick="triageAlert('${a.id}','acknowledge')" class="flex-1 rounded bg-amber-600 hover:bg-amber-500 py-1.5 text-xs font-bold">Acknowledge</button>
+                <button onclick="triageAlert('${a.id}','false_positive')" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5 text-xs font-bold">Dismiss</button>
+                <button onclick="triageAlert('${a.id}','escalate')" class="rounded bg-purple-600 hover:bg-purple-500 px-2 py-1.5 text-xs font-bold">Escalate</button>
+              </div>` : ""}
+          </div>`;
+      }).join("");
+    } catch (e) { console.error("alerts:", e); }
+  }
+
+  load();
       }
     } catch (e) {
       UI.toast("Analysis failed", "error");
@@ -159,5 +201,32 @@
   };
 
   load();
+  loadAlerts();
   setInterval(load, 30000);
+  setInterval(loadAlerts, 30000);
+
+  window.triageAlert = async function(id, action) {
+    let payload = { action };
+    if (action === "false_positive") {
+      const reason = prompt("Reason for false positive?");
+      if (!reason) return;
+      payload.reason = reason;
+    }
+    if (action === "escalate") {
+      payload.notes = prompt("Escalation notes:") || "Escalated to hospital head";
+    }
+    const key = crypto.randomUUID ? crypto.randomUUID() : (Date.now()+"-"+Math.random());
+    try {
+      const res = await Auth.apiFetch(`/api/bff/dept-head/alerts/${id}/triage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        UI.toast(action === "escalate" ? "Escalated" : action === "false_positive" ? "Dismissed" : "Acknowledged");
+        loadAlerts();
+      } else { UI.toast("Triage failed", "error"); }
+    } catch (e) { UI.toast("Network error", "error"); }
+  };
+
 })();

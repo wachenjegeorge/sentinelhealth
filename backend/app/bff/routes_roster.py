@@ -19,10 +19,10 @@ KEPH_DEPARTMENTS = {
 @router.get("/departments")
 async def get_departments(request: Request):
     claims = request.state.claims
-    if claims["role"] != "health_officer":
+    if claims["role"] != "county_officer":
         raise HTTPException(403, "health_officer role required")
 
-    async with with_tenant(claims["facility_id"], role="health_officer", user_id=claims["sub"]) as session:
+    async with with_tenant(claims["facility_id"], role="county_officer", user_id=claims["sub"]) as session:
         level = (await session.execute(text("SELECT keph_level FROM facilities WHERE id = :f"), {"f": claims["facility_id"]})).scalar()
         
     # Default to Level 4 if unknown
@@ -32,7 +32,7 @@ async def get_departments(request: Request):
 @router.get("")
 async def get_roster(request: Request):
     claims = request.state.claims
-    async with with_tenant(claims["facility_id"], role="health_officer", user_id=claims["sub"]) as session:
+    async with with_tenant(claims["facility_id"], role="county_officer", user_id=claims["sub"]) as session:
         rows = (await session.execute(text("""
             SELECT s.id, s.department, s.shift_type, s.start_time, s.end_time,
                    u.full_name, u.username
@@ -53,7 +53,7 @@ class CreateShiftPayload(BaseModel):
 @router.post("")
 async def create_shift(payload: CreateShiftPayload, request: Request):
     claims = request.state.claims
-    async with with_tenant(claims["facility_id"], role="health_officer", user_id=claims["sub"]) as session:
+    async with with_tenant(claims["facility_id"], role="county_officer", user_id=claims["sub"]) as session:
         # Convert ISO strings to datetime
         start = datetime.fromisoformat(payload.start_time.replace("Z", "+00:00"))
         end = datetime.fromisoformat(payload.end_time.replace("Z", "+00:00"))
@@ -73,7 +73,7 @@ class StrategyPayload(BaseModel):
 @router.post("/strategy")
 async def generate_strategy(payload: StrategyPayload, request: Request):
     claims = request.state.claims
-    async with with_tenant(claims["facility_id"], role="health_officer", user_id=claims["sub"]) as session:
+    async with with_tenant(claims["facility_id"], role="county_officer", user_id=claims["sub"]) as session:
         staff = (await session.execute(text("""
             SELECT u.full_name FROM worker_schedules s
             JOIN users u ON u.id = s.user_id

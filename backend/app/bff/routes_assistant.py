@@ -66,7 +66,7 @@ async def feedback(payload: FeedbackPayload, request: Request):
 @router.post("/outcome")
 async def outcome(payload: OutcomePayload, request: Request):
     claims = request.state.claims
-    if claims["role"] != "health_officer":
+    if claims["role"] != "county_officer":
         raise HTTPException(403, "health_officer role required")
     try:
         day_obj = date_cls.fromisoformat(payload.day)

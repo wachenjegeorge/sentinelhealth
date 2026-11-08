@@ -9,11 +9,13 @@ router = APIRouter(prefix="/api/bff/admin/intel", tags=["intel"])
 
 
 def _check_county_access(claims: dict, county: str) -> None:
+    """Allow admin. Allow county_officer whose JWT county matches."""
     if claims["role"] == "admin":
         return
-    if claims.get("county") == county:
+    jwt_county = claims.get("county")
+    if jwt_county and jwt_county.lower() == county.lower():
         return
-    raise HTTPException(403, "County outside your scope")
+    raise HTTPException(403, f"County '{county}' is outside your scope")
 
 
 # ── 1. County summary (KPIs) ─────────────────────────────

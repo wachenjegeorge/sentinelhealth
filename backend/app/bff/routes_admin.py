@@ -19,7 +19,7 @@ async def overview(request: Request):
         async with AdminSession() as session:
             return await agg.overview_national(session)
 
-    if role in ("county_officer", "health_officer"):
+    if role in ("county_officer", "county_officer"):
         async with with_tenant(claims["facility_id"], role=role, user_id=claims["sub"]) as session:
             county = (await session.execute(text(
                 "SELECT county FROM facilities WHERE id = :id"),
@@ -34,9 +34,26 @@ async def overview(request: Request):
             data["autonomous_alerts"] = [dict(a) | {"created_at": a["created_at"].isoformat()} for a in alerts]
             return data
 
-    if role in ("hospital_head", "department_head"):
+    if role == "hospital_head":
         async with with_tenant(claims["facility_id"], role=role, user_id=claims["sub"]) as session:
-            return await agg.overview_facility(session, claims["facility_id"])
+            data = await agg.overview_facility(session, claims["facility_id"])
+            alerts = (await session.execute(text("""
+                SELECT id, department, shift, alert_type, ai_protocol, status,
+                       assigned_to_level, created_at
+                FROM autonomous_alerts
+                WHERE facility_id = :f
+                  AND status IN ('active', 'escalated')
+                  AND assigned_to_level IN ('hospital_head', 'county_officer')
+                ORDER BY created_at DESC LIMIT 50
+            """), {"f": claims["facility_id"]})).mappings().all()
+            data["autonomous_alerts"] = [
+                dict(a) | {"created_at": a["created_at"].isoformat()} for a in alerts
+            ]
+            return data
+
+    if role == "department_head":
+        # Department heads get their department-only view via /api/bff/dept-head/overview
+        raise HTTPException(403, "department_head should use /api/bff/dept-head/overview")
 
     raise HTTPException(403, "no dashboard for this role")
 

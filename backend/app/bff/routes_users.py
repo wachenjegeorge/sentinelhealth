@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/bff/admin/users", tags=["admin-users"])
 
 def _require_officer(request: Request) -> dict:
     claims = request.state.claims
-    if claims["role"] != "health_officer":
+    if claims["role"] != "county_officer":
         raise HTTPException(403, "health_officer role required")
     return claims
 
@@ -60,7 +60,7 @@ async def approve(user_id: str, request: Request):
                 "SELECT set_config('app.facility_id', :f, true)"),
                 {"f": claims["facility_id"]})
             await append_audit(session, facility_id=claims["facility_id"],
-                               actor=claims["username"], role="health_officer",
+                               actor=claims["username"], role="county_officer",
                                action="user.approve",
                                resource=f"users/{user_id}",
                                detail={"username": target["username"]})
@@ -87,7 +87,7 @@ async def reject(user_id: str, request: Request):
                 "SELECT set_config('app.facility_id', :f, true)"),
                 {"f": claims["facility_id"]})
             await append_audit(session, facility_id=claims["facility_id"],
-                               actor=claims["username"], role="health_officer",
+                               actor=claims["username"], role="county_officer",
                                action="user.reject",
                                resource=f"users/{user_id}",
                                detail={"username": target["username"]})
@@ -119,7 +119,7 @@ async def reset_password(user_id: str, payload: ResetPasswordPayload,
                 "SELECT set_config('app.facility_id', :f, true)"),
                 {"f": claims["facility_id"]})
             await append_audit(session, facility_id=claims["facility_id"],
-                               actor=claims["username"], role="health_officer",
+                               actor=claims["username"], role="county_officer",
                                action="user.password_reset",
                                resource=f"users/{user_id}",
                                detail={"username": target["username"]})
