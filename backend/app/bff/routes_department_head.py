@@ -286,7 +286,7 @@ async def triage_alert(alert_id: str, payload: TriagePayload, request: Request):
             await session.execute(text("""
                 UPDATE autonomous_alerts
                 SET status = 'acknowledged', acknowledged_by = :by,
-                    acknowledged_at = now(), escalation_chain = :chain::jsonb
+                    acknowledged_at = now(), escalation_chain = CAST(:chain AS jsonb)
                 WHERE id = :id AND facility_id = :f
             """), {"by": claims["sub"], "chain": json.dumps(chain),
                    "id": alert_id, "f": claims["facility_id"]})
@@ -298,7 +298,7 @@ async def triage_alert(alert_id: str, payload: TriagePayload, request: Request):
                 SET status = 'false_positive',
                     false_positive_reason = :r,
                     acknowledged_by = :by, acknowledged_at = now(),
-                    escalation_chain = :chain::jsonb
+                    escalation_chain = CAST(:chain AS jsonb)
                 WHERE id = :id AND facility_id = :f
             """), {"r": payload.reason, "by": claims["sub"],
                    "chain": json.dumps(chain),
@@ -310,7 +310,7 @@ async def triage_alert(alert_id: str, payload: TriagePayload, request: Request):
                     assigned_to_level = 'hospital_head',
                     assigned_to_user_id = NULL,
                     resolution_notes = :n,
-                    escalation_chain = :chain::jsonb
+                    escalation_chain = CAST(:chain AS jsonb)
                 WHERE id = :id AND facility_id = :f
             """), {"n": payload.notes or "",
                    "chain": json.dumps(chain),
