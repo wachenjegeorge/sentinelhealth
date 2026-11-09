@@ -33,6 +33,7 @@ from app.bff.routes_sync import router as sync_router
 from app.bff.routes_telemetry import router as telemetry_router
 from app.bff.routes_users import router as users_router
 from app.bff.routes_wearable import router as wearable_router
+from app.bff.routes_recommendations import router as recs_router
 from app.bff.routes_worker import router as worker_router
 
 # ── Robust frontend path resolution ──────────────────────
@@ -74,6 +75,7 @@ app.include_router(wearable_router)
 app.include_router(shift_req_router)
 app.include_router(telemetry_router)
 app.include_router(intel_router)
+app.include_router(recs_router)
 
 
 # ── Health ───────────────────────────────────────────────

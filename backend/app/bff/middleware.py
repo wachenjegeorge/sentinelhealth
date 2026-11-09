@@ -9,7 +9,7 @@ from app.security import verify_token
 # Exact paths that do not require an Authorization header
 PUBLIC_PATHS = {
     "/health", "/", "/login", "/register", "/worker", "/admin",
-    "/admin/users", "/admin/verify", "/admin/incidents", "/dept-head",
+    "/admin/users", "/admin/verify", "/admin/incidents", "/admin/facilities", "/dept-head",
     "/profile", "/compliance", "/keph", "/sw.js",
     "/docs", "/openapi.json", "/favicon.ico",
 }
