@@ -173,7 +173,6 @@
       });
       loadOverview();
   loadDepartments();
-  loadRecommendations();
     } catch (e) { console.error(e); }
   };
 
@@ -277,56 +276,9 @@
   // ── 10. Init ──
   loadOverview();
   loadDepartments();
-  loadRecommendations();
   if (role !== "admin") loadRoster();
   checkApprovals();
   setInterval(loadOverview, 30000);
   setInterval(checkApprovals, 60000);
 
-  async function loadRecommendations() {
-    if (role !== 'hospital_head') return;
-    const section = $('recs-section');
-    if (section) section.classList.remove('hidden');
-    const list = $('recs-list');
-    if (!list) return;
-    try {
-      const res = await Auth.apiFetch('/api/bff/admin/recommendations');
-      if (!res.ok) return;
-      const d = await res.json();
-      const recs = d.recommendations || [];
-      const countEl = $('recs-count');
-      if (countEl) countEl.textContent = recs.filter(r => r.status === 'pending').length + ' pending';
-      if (recs.length === 0) {
-        list.innerHTML = '<p class="text-sm text-slate-500 py-4 text-center">No recommendations yet.</p>';
-        return;
-      }
-      list.innerHTML = recs.map(r => {
-        const sevColor = r.severity === 'high' ? 'rose' : r.severity === 'medium' ? 'amber' : 'slate';
-        const badge = r.status === 'pending'
-          ? '<span class="text-[10px] bg-' + sevColor + '-500/20 text-' + sevColor + '-300 px-2 py-0.5 rounded animate-pulse">' + r.severity.toUpperCase() + '</span>'
-          : '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">Acknowledged</span>';
-        const ackBtn = r.status === 'pending'
-          ? '<button onclick="ackRecommendation('' + r.id + '')" class="mt-2 rounded bg-emerald-600 hover:bg-emerald-500 px-3 py-1 text-xs font-bold">Acknowledge</button>'
-          : '';
-        return '<div class="p-3 bg-slate-800/60 border border-slate-700/50 rounded-lg">' +
-          '<div class="flex justify-between items-start mb-1"><div>' +
-          '<p class="text-sm font-semibold text-slate-200">' + r.subject + '</p>' +
-          '<p class="text-[10px] text-slate-500">From ' + r.from_username + ' (' + r.from_role.replace(/_/g, ' ') + ')' + (r.department ? ' · ' + r.department : '') + '</p>' +
-          '</div>' + badge + '</div>' +
-          '<p class="text-xs text-slate-300 mt-1">' + r.message + '</p>' + ackBtn + '</div>';
-      }).join('');
-    } catch (e) { console.error('recs:', e); }
-  }
-
-  window.ackRecommendation = async function(id) {
-    const key = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
-    try {
-      const res = await Auth.apiFetch('/api/bff/admin/recommendations/' + id + '/acknowledge', {
-        method: 'POST',
-        headers: { 'Idempotency-Key': key },
-      });
-      if (res.ok) { UI.toast('Acknowledged'); loadRecommendations(); }
-    } catch (e) { UI.toast('Failed', 'error'); }
-  };
-
-})();
+  })();
