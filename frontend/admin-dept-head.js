@@ -232,42 +232,74 @@
 
 
   window.generateDeepReport = async function() {
-    const btn = document.getElementById("gen-deep-report");
-    const body = document.getElementById("deep-report-body");
-    if (!btn || !body) return;
-    btn.disabled = true;
-    btn.textContent = "Analyzing...";
-    body.classList.remove("hidden");
-    body.innerHTML = '<div class="flex items-center gap-2 text-fuchsia-400"><div class="spinner"></div><span>Analyzing department data... 15-20 seconds.</span></div>';
+  const btn = document.getElementById("gen-deep-report");
+  const body = document.getElementById("deep-report-body");
+  if (!btn || !body) return;
+  btn.disabled = true;
+  btn.textContent = "Analyzing...";
+  body.classList.remove("hidden");
+  body.innerHTML = '<div class="flex items-center gap-2 text-fuchsia-400"><span>Analyzing department data... 15-20 seconds.</span></div>';
+  const key = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random()));
+  try {
+    const res = await Auth.apiFetch("/api/bff/dept-head/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    const report = String(d.report || "No report generated");
+    const html = renderMd(report);
+    const m = d.metrics || {};
+    const info = m.total_reports != null ? (m.total_reports + " reports, WVI " + m.avg_wvi) : "";
+    const header = '<div class="flex justify-between items-center mb-3 pb-2 border-b border-slate-800"><span class="text-xs text-fuchsia-400 font-mono">ENGINE: ' + String(d.engine || "?").toUpperCase() + '</span><span class="text-[10px] text-slate-500">' + info + '</span></div>';
+    body.innerHTML = header + '<div class="text-sm text-slate-300 leading-relaxed">' + html + '</div>';
+  } catch (e) {
+    body.innerHTML = '<p class="text-rose-400">Report failed: ' + (e && e.message ? e.message : "unknown") + '</p>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Regenerate";
+  }
+};
 
-    const key = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
-    try {
-      const res = await Auth.apiFetch("/api/bff/dept-head/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const d = await res.json();
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
-      let html = (d.report || "No report")
-        .replace(/^## (.*?)$/gm, "<h2 class="text-base font-bold text-white mt-4 mb-2">$1</h2>")
-        .replace(/^### (.*?)$/gm, "<h3 class="text-sm font-semibold text-slate-100 mt-3 mb-1">$1</h3>")
-        .replace(/\*\*(.*?)\*\*/g, "<strong class="text-white">$1</strong>")
-        .replace(/
+function inlineMd(s) {
+  let x = escHtml(s);
+  x = x.replace(/\*\*(.+?)\*\*/g, '<strong class="text-white">$1</strong>');
+  x = x.replace(/`([^`]+)`/g, '<code class="bg-slate-800 px-1 rounded text-cyan-300">$1</code>');
+  return x;
+}
 
-/g, "</p><p class="mb-2">")
-        .replace(/
-/g, "<br>");
-
-      const metrics = d.metrics ? (d.metrics.total_reports + " reports · WVI " + d.metrics.avg_wvi) : "";
-      body.innerHTML = "<div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800"><span class="text-xs text-fuchsia-400 font-mono">ENGINE: " + (d.engine || "?").toUpperCase() + "</span><span class="text-[10px] text-slate-500">" + metrics + "</span></div>" + html;
-    } catch (e) {
-      body.innerHTML = '<p class="text-rose-400">Report failed: ' + e.message + '</p>';
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Regenerate";
+function renderMd(md) {
+  const lines = md.split("\n");
+  const out = [];
+  let inList = false;
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t.startsWith("### ")) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push('<h3 class="text-sm font-semibold text-slate-100 mt-3 mb-1">' + inlineMd(t.slice(4)) + '</h3>');
+    } else if (t.startsWith("## ")) {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push('<h2 class="text-base font-bold text-white mt-4 mb-2">' + inlineMd(t.slice(3)) + '</h2>');
+    } else if (/^[-\u2022]\s+/.test(t)) {
+      if (!inList) { out.push('<ul class="list-disc ml-5 my-2">'); inList = true; }
+      out.push('<li class="mb-1">' + inlineMd(t.replace(/^[-\u2022]\s+/, "")) + '</li>');
+    } else if (/^\d+\.\s+/.test(t)) {
+      if (!inList) { out.push('<ul class="list-disc ml-5 my-2">'); inList = true; }
+      out.push('<li class="mb-1">' + inlineMd(t.replace(/^\d+\.\s+/, "")) + '</li>');
+    } else if (t === "") {
+      if (inList) { out.push("</ul>"); inList = false; }
+    } else {
+      if (inList) { out.push("</ul>"); inList = false; }
+      out.push('<p class="mb-2">' + inlineMd(t) + '</p>');
     }
-  };
+  }
+  if (inList) out.push("</ul>");
+  return out.join("");
+}
 
 })();
