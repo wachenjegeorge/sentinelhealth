@@ -302,4 +302,88 @@ function renderMd(md) {
   return out.join("");
 }
 
+
+  async function loadRoster() {
+    const el = $("roster-list");
+    if (!el) return;
+    try {
+      const res = await Auth.apiFetch("/api/bff/dept-head/roster");
+      if (!res.ok) return;
+      const d = await res.json();
+      const roster = d.roster || [];
+      if (roster.length === 0) {
+        el.innerHTML = '<p class="text-sm text-slate-500">No upcoming shifts scheduled.</p>';
+        return;
+      }
+      el.innerHTML = roster.slice(0, 10).map(function(r) {
+        return '<div class="flex justify-between items-center p-2 rounded bg-slate-900/50 border border-slate-800">' +
+          '<div><p class="text-sm font-medium text-slate-200">' + (r.full_name || r.username) + '</p>' +
+          '<p class="text-[10px] text-slate-500">' + new Date(r.start_time).toLocaleString() + '</p></div>' +
+          '<span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400">' + r.shift_type + '</span>' +
+        '</div>';
+      }).join("");
+    } catch (e) { console.error("roster:", e); }
+  }
+
+  window.openAddShiftModal = async function() {
+    const modal = $("add-shift-modal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    const sel = $("as-worker");
+    sel.innerHTML = '<option>Loading...</option>';
+    try {
+      const res = await Auth.apiFetch("/api/bff/dept-head/roster/workers");
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      const workers = d.workers || [];
+      if (workers.length === 0) {
+        sel.innerHTML = '<option value="">No workers in your department yet</option>';
+        return;
+      }
+      sel.innerHTML = workers.map(function(w) {
+        return '<option value="' + w.id + '">' + (w.full_name || w.username) + '</option>';
+      }).join("");
+    } catch (e) {
+      sel.innerHTML = '<option value="">Failed to load workers</option>';
+    }
+  };
+
+  window.closeAddShiftModal = function() {
+    const modal = $("add-shift-modal");
+    if (modal) { modal.classList.add("hidden"); modal.classList.remove("flex"); }
+  };
+
+  window.submitAddShift = async function() {
+    const workerId = $("as-worker").value;
+    const shiftType = $("as-type").value;
+    const date = $("as-date").value;
+    const start = $("as-start").value;
+    const end = $("as-end").value;
+    if (!workerId || !date || !start || !end) {
+      return UI.toast("Fill all fields", "error");
+    }
+    const startISO = new Date(date + "T" + start).toISOString();
+    const endISO = new Date(date + "T" + end).toISOString();
+    const key = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    try {
+      const res = await Auth.apiFetch("/api/bff/dept-head/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({
+          user_id: workerId,
+          shift_type: shiftType,
+          start_time: startISO,
+          end_time: endISO,
+        }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      UI.toast("Shift scheduled");
+      closeAddShiftModal();
+      loadRoster();
+    } catch (e) {
+      UI.toast("Failed: " + e.message, "error");
+    }
+  };
+
 })();

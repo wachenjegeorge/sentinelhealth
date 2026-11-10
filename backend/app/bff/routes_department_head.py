@@ -429,3 +429,79 @@ Be direct. Reference numbers. No filler like "monitor"."""
             "active_alerts": len(alerts),
         },
     }
+
+# ── Predictive Roster ────────────────────────────────────
+from datetime import datetime as _dt
+
+
+@router.get("/roster")
+async def get_dept_roster(request: Request):
+    """Upcoming shifts for this dept head's department."""
+    claims = _require_dept_head(request)
+    async with with_tenant(claims["facility_id"], role="department_head", user_id=claims["sub"]) as session:
+        dept = (await session.execute(text(
+            "SELECT primary_department FROM users WHERE id = :id"),
+            {"id": claims["sub"]})).scalar()
+        rows = (await session.execute(text("""
+            SELECT s.id, s.department, s.shift_type, s.start_time, s.end_time,
+                   u.full_name, u.username
+            FROM worker_schedules s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.facility_id = :f AND s.department = :d
+              AND s.start_time > now() - interval '12 hours'
+            ORDER BY s.start_time ASC LIMIT 50
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+    return {"department": dept, "roster": [
+        dict(r) | {"start_time": r["start_time"].isoformat(), "end_time": r["end_time"].isoformat()}
+        for r in rows
+    ]}
+
+
+@router.get("/roster/workers")
+async def list_dept_workers(request: Request):
+    """Workers in this dept head's department."""
+    claims = _require_dept_head(request)
+    async with with_tenant(claims["facility_id"], role="department_head", user_id=claims["sub"]) as session:
+        dept = (await session.execute(text(
+            "SELECT primary_department FROM users WHERE id = :id"),
+            {"id": claims["sub"]})).scalar()
+        rows = (await session.execute(text("""
+            SELECT id, username, full_name FROM users
+            WHERE facility_id = :f AND role = 'worker' AND active
+              AND primary_department = :d
+            ORDER BY COALESCE(full_name, username)
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+    return {"workers": [dict(r) for r in rows]}
+
+
+class _NewShiftPayload(BaseModel):
+    user_id: str
+    shift_type: str
+    start_time: str
+    end_time: str
+
+
+@router.post("/roster")
+async def create_dept_shift(payload: _NewShiftPayload, request: Request):
+    """Dept head schedules a shift for a worker in their department."""
+    claims = _require_dept_head(request)
+    async with with_tenant(claims["facility_id"], role="department_head", user_id=claims["sub"]) as session:
+        dept = (await session.execute(text(
+            "SELECT primary_department FROM users WHERE id = :id"),
+            {"id": claims["sub"]})).scalar()
+        worker = (await session.execute(text("""
+            SELECT 1 FROM users
+            WHERE id = :uid AND facility_id = :f AND role = 'worker'
+              AND active AND primary_department = :d
+        """), {"uid": payload.user_id, "f": claims["facility_id"], "d": dept})).scalar()
+        if not worker:
+            raise HTTPException(403, "worker is not in your department")
+        start = _dt.fromisoformat(payload.start_time.replace("Z", "+00:00"))
+        end = _dt.fromisoformat(payload.end_time.replace("Z", "+00:00"))
+        await session.execute(text("""
+            INSERT INTO worker_schedules
+                (user_id, facility_id, department, shift_type, start_time, end_time, status)
+            VALUES (:u, :f, :d, :st, :start, :end, 'scheduled')
+        """), {"u": payload.user_id, "f": claims["facility_id"], "d": dept,
+               "st": payload.shift_type, "start": start, "end": end})
+    return {"ok": True}

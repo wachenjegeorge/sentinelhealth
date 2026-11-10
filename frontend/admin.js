@@ -188,6 +188,7 @@
       });
       loadOverview();
   loadDepartments();
+  loadForecast();
     } catch (e) { console.error(e); }
   };
 
@@ -291,6 +292,7 @@
   // ── 10. Init ──
   loadOverview();
   loadDepartments();
+  loadForecast();
   if (role !== "admin") loadRoster();
   checkApprovals();
   setInterval(loadOverview, 30000);
@@ -307,5 +309,60 @@
       alert('admin-hosp.js not loaded');
     }
   };
+
+
+  async function loadForecast() {
+    if (role !== "county_officer") return;
+    const section = $("forecast-section");
+    if (section) section.classList.remove("hidden");
+    const body = $("forecast-body");
+    const dirEl = $("forecast-direction");
+    if (!body) return;
+    try {
+      const res = await Auth.apiFetch("/api/bff/admin/forecast");
+      if (!res.ok) return;
+      const d = await res.json();
+      if (!d.available) {
+        body.innerHTML = '<p class="text-sm text-slate-500 col-span-4">Not enough data yet (need 3+ days of confirmed check-ins).</p>';
+        return;
+      }
+      const colorFor = function(v) { return v >= 65 ? "text-rose-400" : v >= 35 ? "text-amber-400" : "text-emerald-400"; };
+      const bgFor = function(v) { return v >= 65 ? "bg-rose-500" : v >= 35 ? "bg-amber-500" : "bg-emerald-500"; };
+      const trendColor = d.trend_direction === "worsening" ? "text-rose-400"
+                        : d.trend_direction === "improving" ? "text-emerald-400" : "text-slate-400";
+      const trendIcon = d.trend_direction === "worsening" ? "\u2191"
+                       : d.trend_direction === "improving" ? "\u2193" : "\u2192";
+      if (dirEl) {
+        dirEl.textContent = trendIcon + " " + d.trend_direction;
+        dirEl.className = "text-xs font-medium " + trendColor;
+      }
+      const peer = (d.peer_delta != null)
+        ? '<div class="col-span-4 p-3 rounded bg-slate-900/50 border border-slate-800">' +
+            '<p class="text-[10px] uppercase text-slate-500">Peer Comparison</p>' +
+            '<p class="text-sm">You are <strong class="' + (d.peer_delta > 0 ? "text-rose-400" : "text-emerald-400") + '">' + (d.peer_delta > 0 ? "+" : "") + d.peer_delta + '</strong> WVI vs national median (' + d.national_median + ')</p>' +
+          '</div>'
+        : '';
+      const bars = d.forecast.map(function(p) {
+        var h = (p.projected_wvi / 100) * 100;
+        return '<div class="flex-1 ' + bgFor(p.projected_wvi) + ' rounded-t" style="height:' + h + '%" title="Day +' + p.day_offset + ': ' + p.projected_wvi + '"></div>';
+      }).join("");
+      body.innerHTML =
+        '<div class="col-span-2 p-3 rounded bg-slate-900/50 border border-slate-800">' +
+          '<p class="text-[10px] uppercase text-slate-500">Current WVI</p>' +
+          '<p class="text-2xl font-bold ' + colorFor(d.current_wvi) + '">' + d.current_wvi + '</p>' +
+          '<p class="text-[10px] text-slate-500">' + d.level + '</p>' +
+        '</div>' +
+        '<div class="col-span-2 p-3 rounded bg-slate-900/50 border border-slate-800">' +
+          '<p class="text-[10px] uppercase text-slate-500">7-Day Projection</p>' +
+          '<p class="text-2xl font-bold ' + colorFor(d.projected_7d_wvi) + '">' + d.projected_7d_wvi + '</p>' +
+          '<p class="text-[10px] text-slate-500">' + (d.slope_per_day > 0 ? "+" : "") + d.slope_per_day + ' /day</p>' +
+        '</div>' +
+        peer +
+        '<div class="col-span-4">' +
+          '<div class="h-24 flex items-end gap-1">' + bars + '</div>' +
+          '<p class="text-[9px] uppercase text-slate-600 mt-1 text-center">Next 7 days</p>' +
+        '</div>';
+    } catch (e) { console.error("forecast:", e); }
+  }
 
 })();

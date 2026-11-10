@@ -125,3 +125,92 @@ async def export_csv(request: Request):
         w.writerow([r["created_at"].strftime("%Y-%m-%d %H:%M"), r["county"], r["facility"], r["department"], r["shift"], r["fatigue"], r["heat_exposure"], r["risk_score"], r["risk_level"]])
     buf.seek(0)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers={"Content-Disposition": 'attachment; filename="sentinel_export.csv"'})
+
+@router.get("/forecast")
+async def forecast(request: Request):
+    """14-day WVI trend + 7-day projection + peer comparison (county scope)."""
+    claims = request.state.claims
+    if claims["role"] not in ("county_officer", "admin"):
+        raise HTTPException(403, "county_officer or admin required")
+
+    async with AdminSession() as session:
+        if claims["role"] == "admin":
+            county_q = request.query_params.get("county")
+            if county_q:
+                where = "county = :c"
+                params = {"c": county_q}
+            else:
+                where = "1=1"
+                params = {}
+        else:
+            county_q = (await session.execute(text(
+                "SELECT county FROM facilities WHERE id = :id"),
+                {"id": claims["facility_id"]})).scalar()
+            where = "county = :c"
+            params = {"c": county_q}
+
+        rows = (await session.execute(text(f"""
+            SELECT date_trunc('day', created_at) AS day,
+                   avg(risk_score)::numeric(5,1) AS avg_wvi,
+                   count(*) AS n
+            FROM logs
+            WHERE {where}
+              AND verification_status IN ('confirmed','auto_verified')
+              AND created_at >= now() - interval '14 days'
+            GROUP BY 1 ORDER BY 1
+        """), params)).mappings().all()
+
+        national_median = (await session.execute(text("""
+            SELECT avg(risk_score)::numeric(5,1)
+            FROM logs
+            WHERE verification_status IN ('confirmed','auto_verified')
+              AND created_at >= now() - interval '14 days'
+        """))).scalar()
+
+    if len(rows) < 3:
+        return {
+            "county": county_q, "available": False,
+            "reason": "insufficient_data",
+            "points": len(rows),
+            "trend": [{"day": r["day"].strftime("%Y-%m-%d"),
+                       "wvi": float(r["avg_wvi"]), "n": r["n"]} for r in rows],
+        }
+
+    ys = [float(r["avg_wvi"]) for r in rows]
+    n = len(ys)
+    xs = list(range(n))
+    sum_x = sum(xs)
+    sum_y = sum(ys)
+    sum_xy = sum(x * y for x, y in zip(xs, ys))
+    sum_xx = sum(x * x for x in xs)
+    denom = n * sum_xx - sum_x * sum_x
+    slope = ((n * sum_xy - sum_x * sum_y) / denom) if denom else 0
+    intercept = (sum_y - slope * sum_x) / n
+
+    forecast_pts = []
+    for i in range(n, n + 7):
+        proj = max(0.0, min(100.0, slope * i + intercept))
+        forecast_pts.append({"day_offset": i - n + 1, "projected_wvi": round(proj, 1)})
+
+    current = round(ys[-1], 1)
+    projected_7d = forecast_pts[-1]["projected_wvi"]
+    direction = "worsening" if slope > 0.5 else ("improving" if slope < -0.5 else "stable")
+    level = "Critical" if current >= 65 else ("Moderate" if current >= 35 else "Low")
+    peer_delta = None
+    if national_median is not None:
+        peer_delta = round(current - float(national_median), 1)
+
+    return {
+        "county": county_q, "available": True,
+        "current_wvi": current,
+        "projected_7d_wvi": projected_7d,
+        "slope_per_day": round(slope, 2),
+        "trend_direction": direction,
+        "level": level,
+        "national_median": float(national_median) if national_median else None,
+        "peer_delta": peer_delta,
+        "trend": [{"day": r["day"].strftime("%Y-%m-%d"),
+                   "wvi": float(r["avg_wvi"]), "n": r["n"]} for r in rows],
+        "forecast": forecast_pts,
+        "k_anonymity": 5,
+    }

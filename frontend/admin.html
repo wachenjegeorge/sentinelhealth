@@ -154,6 +154,19 @@
     </div>
     <div id="recs-list" class="space-y-2"></div>
   </section>
+
+  <section id="forecast-section" class="card p-5 border-l-4 border-l-indigo-500 hidden">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="card-title">7-Day WVI Forecast</h2>
+        <p class="text-[10px] text-slate-500 mt-1">Linear projection from last 14 days</p>
+      </div>
+      <span id="forecast-direction" class="text-xs font-medium"></span>
+    </div>
+    <div id="forecast-body" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <p class="text-sm text-slate-500">Loading...</p>
+    </div>
+  </section>
 </main>
 
 <script src="/static/ui.js?v=141"></script>

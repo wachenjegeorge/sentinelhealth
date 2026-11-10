@@ -118,6 +118,37 @@
     <div id="deep-report-body" class="hidden rounded-lg bg-slate-900/60 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed max-h-[600px] overflow-y-auto"></div>
   </section>
 
+
+  <section class="card p-5 border-t-4 border-t-indigo-500">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="card-title">Predictive Roster</h2>
+        <p class="text-[10px] text-slate-500 mt-1">Upcoming shifts in your department</p>
+      </div>
+      <button onclick="openAddShiftModal()" class="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 text-xs font-bold text-white">+ Add Shift</button>
+    </div>
+    <div id="roster-list" class="space-y-2 text-sm text-slate-400">Loading...</div>
+  </section>
+
+  <div id="add-shift-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-5 space-y-3">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-lg font-bold text-white">Schedule New Shift</h3>
+        <button onclick="closeAddShiftModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Worker</label>
+      <select id="as-worker" class="field"></select></div>
+      <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Shift Type</label>
+      <select id="as-type" class="field"><option value="day">Day shift</option><option value="night">Night shift</option></select></div>
+      <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Date</label>
+      <input id="as-date" type="date" class="field" /></div>
+      <div class="grid grid-cols-2 gap-2">
+        <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">Start</label><input id="as-start" type="time" class="field" /></div>
+        <div><label class="text-[10px] uppercase text-slate-500 mb-1 block">End</label><input id="as-end" type="time" class="field" /></div>
+      </div>
+      <button onclick="submitAddShift()" class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 text-sm">Schedule Shift</button>
+    </div>
+  </div>
 </main>
 
 <script src="/static/ui.js?v=131"></script>
