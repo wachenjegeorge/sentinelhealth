@@ -15,7 +15,18 @@
 
   if (role !== "admin") {
     if ($("nav-verify")) $("nav-verify").classList.remove("hidden");
-    if ($("nav-facilities")) $("nav-facilities").classList.remove("hidden");
+    if ($("nav-facilities")) {
+      $("nav-facilities").classList.remove("hidden");
+      if (role === "hospital_head") {
+        $("nav-facilities").textContent = "Departments";
+        $("nav-facilities").href = "#";
+        $("nav-facilities").onclick = function(e) {
+          e.preventDefault();
+          var el = document.querySelector("#drill-title");
+          if (el) el.scrollIntoView({ behavior: "smooth" });
+        };
+      }
+    }
     if ($("operational-tools")) $("operational-tools").classList.remove("hidden");
   }
 
@@ -145,12 +156,16 @@
           '</div>';
         }).join(""));
       } else if (d.scope === "facility") {
-        setText("drill-title", "Department Breakdown");
-        setHtml("drill-list", (d.departments || []).map(function(dept) {
-          return '<div class="flex justify-between items-center p-3 bg-slate-800 rounded-lg">' +
+        setText("drill-title", "Departments");
+        window._currentDepts = d.departments || [];
+        setHtml("drill-list", window._currentDepts.map(function(dept, idx) {
+          return '<div onclick="openDeptAnalysisByIndex(' + idx + ')" class="flex justify-between items-center p-3 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition">' +
             '<div><span class="text-sm font-medium text-slate-200 block">' + dept.department + '</span>' +
             '<span class="text-[10px] text-slate-500">' + dept.shifts.join(", ") + ' &middot; ' + dept.reported + ' reports</span></div>' +
+            '<div class="flex items-center gap-2">' +
             '<span class="text-sm font-bold" style="color:' + colorFor(dept.wvi) + '">' + dept.wvi + ' WVI</span>' +
+            '<span class="text-cyan-400 text-xs">&#8594;</span>' +
+            '</div>' +
           '</div>';
         }).join(""));
       }
@@ -281,4 +296,16 @@
   setInterval(loadOverview, 30000);
   setInterval(checkApprovals, 60000);
 
-  })();
+  
+  window._currentDepts = [];
+  window.openDeptAnalysisByIndex = function(idx) {
+    if (!window._currentDepts || !window._currentDepts[idx]) return;
+    var d = window._currentDepts[idx];
+    if (typeof window.openDeptAnalysis === 'function') {
+      window.openDeptAnalysis(d.department, d.wvi);
+    } else {
+      alert('admin-hosp.js not loaded');
+    }
+  };
+
+})();
