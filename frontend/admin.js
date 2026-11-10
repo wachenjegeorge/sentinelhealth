@@ -47,20 +47,36 @@
     const ins = $("ai-insights"), status = $("ai-status");
     if (!ins) return;
     try {
-      const res = await Auth.apiFetch("/api/bff/assistant/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": "ai-" + (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(36).slice(2))) },
-        body: JSON.stringify({ question: "Give me a 2-sentence summary of the current situation and recommend one action." })
-      });
+      const res = await Auth.apiFetch("/api/bff/admin/ai-brief");
       if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      ins.innerHTML = (data.answer || "")
+      const d = await res.json();
+      if (status) status.textContent = "ENGINE: " + String(d.engine || "?").toUpperCase();
+
+      const m = d.metrics || {};
+      const pwvi = m.pooled_wvi || 0;
+      const badge = pwvi >= 65 ? '<span class="text-[10px] bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded">CRITICAL</span>'
+                  : pwvi >= 35 ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">MODERATE</span>'
+                  : '<span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">LOW</span>';
+
+      const kpiRow = '<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">' +
+        '<div class="bg-slate-900/50 rounded-lg p-2 border border-slate-800"><p class="text-[9px] uppercase text-slate-500">Pooled WVI</p><p class="text-lg font-bold text-white">' + pwvi + '</p>' + badge + '</div>' +
+        '<div class="bg-slate-900/50 rounded-lg p-2 border border-slate-800"><p class="text-[9px] uppercase text-slate-500">Facilities</p><p class="text-lg font-bold text-white">' + (m.facilities || 0) + '</p></div>' +
+        '<div class="bg-slate-900/50 rounded-lg p-2 border border-slate-800"><p class="text-[9px] uppercase text-slate-500">Critical</p><p class="text-lg font-bold text-rose-400">' + (m.critical_facilities || 0) + '</p></div>' +
+        '<div class="bg-slate-900/50 rounded-lg p-2 border border-slate-800"><p class="text-[9px] uppercase text-slate-500">Alerts</p><p class="text-lg font-bold text-amber-400">' + (m.alerts || 0) + '</p></div>' +
+      '</div>';
+
+      const body = String(d.brief || "")
+        .replace(/^## (.*?)$/gm, '<h3 class="text-xs font-bold text-cyan-300 uppercase tracking-wider mt-4 mb-2">$1</h3>')
         .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white">$1</strong>')
+        .replace(/^\s*- (.*?)$/gm, '<li class="ml-4 mb-1">$1</li>')
+        .replace(/^\s*(\d+)\. (.*?)$/gm, '<li class="ml-4 mb-1"><span class="text-cyan-400 font-bold">$1.</span> $2</li>')
+        .replace(/\n\n/g, '</p><p class="mb-2">')
         .replace(/\n/g, '<br>');
-      status.textContent = "Engine: " + (data.engine || "unknown").toUpperCase();
+
+      ins.innerHTML = kpiRow + '<div class="text-sm text-slate-300 leading-relaxed">' + body + '</div>';
     } catch (e) {
-      ins.innerHTML = "<span class='text-rose-400'>AI synthesis temporarily offline.</span>";
-      status.textContent = "OFFLINE";
+      ins.innerHTML = "<span class='text-rose-400'>Strategic brief unavailable. Try again.</span>";
+      if (status) status.textContent = "OFFLINE";
     }
   }
 
@@ -250,8 +266,109 @@
       }).join(""));
     } catch (e) { console.error(e); }
   }
-  window.openCreateShift = function() {
-    if (typeof UI !== "undefined" && UI.toast) UI.toast("Create shift — coming next");
+  window.openCreateShift = async function() {
+    const modal = $("create-shift-modal");
+    if (!modal) return UI.toast("Modal missing", "error");
+    modal.style.display = "flex";
+    const deptSel = $("cs-dept");
+    const workerSel = $("cs-worker");
+    deptSel.innerHTML = "<option>Loading...</option>";
+    try {
+      const r1 = await Auth.apiFetch("/api/bff/hospital/departments");
+      const d1 = r1.ok ? await r1.json() : { departments: [] };
+      const depts = d1.departments || [];
+      deptSel.innerHTML = depts.length
+        ? depts.map(function(d) { return '<option value="' + d.department + '">' + d.department + '</option>'; }).join("")
+        : '<option value="">No departments</option>';
+      const r2 = await Auth.apiFetch("/api/bff/admin/roster/workers");
+      const d2 = r2.ok ? await r2.json() : { workers: [] };
+      window._allWorkers = d2.workers || [];
+      filterWorkersByDept();
+      deptSel.onchange = filterWorkersByDept;
+    } catch (e) {
+      deptSel.innerHTML = '<option value="">Failed to load</option>';
+    }
+  };
+
+  function filterWorkersByDept() {
+    const dept = $("cs-dept").value;
+    const workerSel = $("cs-worker");
+    const all = window._allWorkers || [];
+    const matching = all.filter(function(w) {
+      return w.primary_department === dept || (w.primary_department || "").indexOf(dept) === 0;
+    });
+    if (matching.length === 0) {
+      workerSel.innerHTML = '<option value="">No workers in this department</option>';
+    } else {
+      workerSel.innerHTML = matching.map(function(w) {
+        return '<option value="' + w.id + '">' + (w.full_name || w.username) + '</option>';
+      }).join("");
+    }
+  }
+
+  window.closeCreateShift = function() {
+    const m = $("create-shift-modal");
+    if (m) m.style.display = "none";
+  };
+
+  window.submitCreateShift = async function() {
+    const workerId = $("cs-worker").value;
+    const dept = $("cs-dept").value;
+    const type = $("cs-type").value;
+    const date = $("cs-date").value;
+    const start = $("cs-start").value;
+    const end = $("cs-end").value;
+    if (!workerId || !date || !start || !end) return UI.toast("Fill all fields", "error");
+    const startISO = new Date(date + "T" + start).toISOString();
+    const endISO = new Date(date + "T" + end).toISOString();
+    const key = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    try {
+      const res = await Auth.apiFetch("/api/bff/admin/roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({ user_id: workerId, department: dept, shift_type: type, start_time: startISO, end_time: endISO }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      UI.toast("Shift scheduled");
+      closeCreateShift();
+      if (typeof loadRoster === "function") loadRoster();
+    } catch (e) { UI.toast("Failed: " + e.message, "error"); }
+  };
+
+  window.openActionPlan = async function() {
+    const modal = $("action-plan-modal");
+    const body = $("ap-body");
+    if (!modal) return;
+    modal.style.display = "flex";
+    body.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;color:#22d3ee;"><span>Generating comprehensive action plan... 15-20 seconds.</span></div>';
+    const key = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
+    try {
+      const res = await Auth.apiFetch("/api/bff/assistant/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": key },
+        body: JSON.stringify({ question: "Generate a comprehensive action plan for my scope: 1) Current situation with numbers, 2) Top 3 priority areas and why, 3) Three specific actions for THIS WEEK with named owners, 4) Escalation decision yes/no to higher level, 5) What to measure next week." }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const d = await res.json();
+      const html = String(d.answer || "")
+        .replace(/^### (.*?)$/gm, '<h3 style="font-size:0.9rem;font-weight:600;color:#67e8f9;margin:1rem 0 0.5rem;">$1</h3>')
+        .replace(/^## (.*?)$/gm, '<h2 style="font-size:1.1rem;font-weight:700;color:#ffffff;margin:1rem 0 0.5rem;">$1</h2>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#ffffff;">$1</strong>')
+        .replace(/^\s*- (.*?)$/gm, '<li style="margin-left:1rem;margin-bottom:0.25rem;">$1</li>')
+        .replace(/^\s*(\d+)\. (.*?)$/gm, '<li style="margin-left:1rem;margin-bottom:0.25rem;">$2</li>')
+        .replace(/\n\n/g, '</p><p style="margin-bottom:0.5rem;">')
+        .replace(/\n/g, '<br>');
+      body.innerHTML = '<p style="font-size:0.65rem;color:#64748b;margin-bottom:0.75rem;font-family:monospace;">ENGINE: ' + String(d.engine || "?").toUpperCase() + '</p><div style="font-size:0.875rem;color:#cbd5e1;line-height:1.65;">' + html + '</div>';
+    } catch (e) {
+      body.innerHTML = '<p style="color:#fb7185;">Failed: ' + e.message + '</p>';
+    }
+  };
+
+  window.regenerateActionPlan = function() { openActionPlan(); };
+
+  window.closeActionPlan = function() {
+    const m = $("action-plan-modal");
+    if (m) m.style.display = "none";
   };
 
   // ── 9. Approval badge ──

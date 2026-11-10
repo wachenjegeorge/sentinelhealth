@@ -214,3 +214,130 @@ async def forecast(request: Request):
         "forecast": forecast_pts,
         "k_anonymity": 5,
     }
+
+@router.get("/ai-brief")
+async def ai_brief(request: Request):
+    """4-section strategic brief for county officer / admin."""
+    claims = request.state.claims
+    role = claims["role"]
+    nl = chr(10)
+
+    async with AdminSession() as session:
+        if role == "admin":
+            county = request.query_params.get("county")
+            where = "1=1" if not county else "county = :c"
+            params = {} if not county else {"c": county}
+        elif role == "hospital_head":
+            county = None
+            where = "facility_id = :f"
+            params = {"f": claims["facility_id"]}
+        else:
+            county = (await session.execute(text(
+                "SELECT county FROM facilities WHERE id = :id"),
+                {"id": claims["facility_id"]})).scalar()
+            where = "county = :c"
+            params = {"c": county}
+
+        rows = (await session.execute(text(f"""
+            SELECT facility_id, county, department, shift,
+                   sum(n) AS reports,
+                   sum(p90_score * n) / sum(n) AS wvi
+            FROM agg_logs WHERE {where}
+            GROUP BY facility_id, county, department, shift
+            HAVING sum(n) >= 5
+        """), params)).mappings().all()
+
+        fac_names = {r["id"]: r["name"] for r in (await session.execute(text(
+            "SELECT id, name FROM facilities"
+        ))).mappings().all()}
+
+        alerts = (await session.execute(text(f"""
+            SELECT department, shift, alert_type, severity
+            FROM autonomous_alerts
+            WHERE {where} AND status IN ('active','escalated')
+            ORDER BY created_at DESC LIMIT 10
+        """), params)).mappings().all()
+
+    if not rows:
+        return {
+            "scope": county or "national",
+            "engine": "fallback",
+            "brief": "## No data yet" + nl + nl + "Not enough verified check-ins.",
+            "metrics": {"groups": 0, "alerts": len(alerts)},
+        }
+
+    fac_wvi = {}
+    for r in rows:
+        fid = r["facility_id"]
+        if fid not in fac_wvi:
+            fac_wvi[fid] = {"total": 0.0, "weight": 0}
+        fac_wvi[fid]["total"] += float(r["wvi"]) * float(r["reports"])
+        fac_wvi[fid]["weight"] += float(r["reports"])
+
+    top_facs = sorted(
+        [{"id": k, "name": fac_names.get(k, k),
+          "wvi": round(v["total"] / v["weight"], 1),
+          "reports": v["weight"]}
+         for k, v in fac_wvi.items()],
+        key=lambda x: -x["wvi"]
+    )[:5]
+
+    total_reports = sum(f["reports"] for f in top_facs)
+    pooled = (sum(f["wvi"] * f["reports"] for f in top_facs) / total_reports) if total_reports else 0
+    critical_count = sum(1 for f in top_facs if f["wvi"] >= 65)
+
+    from app.modules.assistant import llm_client
+    alert_text = nl.join("- " + a["department"] + " (" + a["shift"] + "): " + a["alert_type"] for a in alerts) or "None"
+    fac_text = nl.join(str(i+1) + ". " + f["name"] + ": WVI " + str(f["wvi"]) + ", " + str(f["reports"]) + " reports" for i, f in enumerate(top_facs))
+
+    role_lens = "COUNTY HEALTH OFFICER" if role == "county_officer" else "NATIONAL DIRECTOR"
+    prompt = (
+        "You are the Strategic AI Co-Pilot for the " + role_lens + " of " + (county or "Kenya") + "." + nl + nl
+        + "DATA (last 30 days):" + nl
+        + "- Pooled WVI: " + str(round(pooled, 1)) + nl
+        + "- Facilities at Critical: " + str(critical_count) + nl
+        + "- Active alerts: " + str(len(alerts)) + nl + nl
+        + "Top 5 facilities:" + nl + fac_text + nl + nl
+        + "Active alerts:" + nl + alert_text + nl + nl
+        + "Generate a strategic brief in markdown with EXACTLY these 4 sections:" + nl + nl
+        + "## Situation" + nl
+        + "2-3 sentences. Reference numbers." + nl + nl
+        + "## Priority Facilities" + nl
+        + "Top 2-3 facilities with WHY." + nl + nl
+        + "## 3 Actions This Week" + nl
+        + "Numbered. WHO, WHAT, WHEN." + nl + nl
+        + "## Escalation" + nl
+        + "Yes/No to national with one reason." + nl
+    )
+
+    try:
+        res = await llm_client.chat([{"role": "user", "content": prompt}])
+        brief = res["message"]["content"]
+        engine = "groq"
+    except Exception:
+        brief = (
+            "## Situation" + nl + nl
+            + "Pooled WVI " + str(round(pooled, 1)) + ". " + str(critical_count) + " critical. " + str(len(alerts)) + " alerts." + nl + nl
+            + "## Priority Facilities" + nl + nl + fac_text + nl + nl
+            + "## 3 Actions This Week" + nl + nl
+            + "1. **County CHMT**: Review staffing at " + (top_facs[0]["name"] if top_facs else "top facility") + " this week." + nl
+            + "2. **Hospital Heads**: Confirm high-risk check-ins by end of shift." + nl
+            + "3. **County CHMT**: Deploy hydration protocols to ICU and ED." + nl + nl
+            + "## Escalation" + nl + nl
+            + ("Yes - national support recommended." if critical_count >= 2 else "No - manageable at county.")
+        )
+        engine = "fallback"
+
+    return {
+        "scope": county or "national",
+        "engine": engine,
+        "brief": brief,
+        "metrics": {
+            "groups": len(rows),
+            "facilities": len(fac_wvi),
+            "critical_facilities": critical_count,
+            "pooled_wvi": round(pooled, 1),
+            "alerts": len(alerts),
+        },
+        "top_facilities": top_facs,
+    }
