@@ -20,6 +20,7 @@ class CreateFacilityPayload(BaseModel):
     keph_level: int = Field(ge=1, le=6)
     facility_type: str
     sub_county: str | None = None
+    county: str | None = None
 
 @router.post("")
 async def create_facility(payload: CreateFacilityPayload, request: Request):
@@ -30,8 +31,11 @@ async def create_facility(payload: CreateFacilityPayload, request: Request):
     async with AdminSession() as session:
         # Determine county
         if claims["role"] == "admin":
-            raise HTTPException(400, "Admin must use SQL to add national facilities")
-        county = (await session.execute(text("SELECT county FROM facilities WHERE id=:id"), {"id": claims["facility_id"]})).scalar()
+            if not payload.county:
+                raise HTTPException(400, "county is required when admin creates a facility")
+            county = payload.county
+        else:
+            county = (await session.execute(text("SELECT county FROM facilities WHERE id=:id"), {"id": claims["facility_id"]})).scalar()
 
         fac_id = payload.name.lower().replace(" ", "-") + "-" + county.lower()[:3]
         

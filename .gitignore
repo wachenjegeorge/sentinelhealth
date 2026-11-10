@@ -41,3 +41,4 @@ fly.toml.local
 # Local test data
 *.sqlite3
 *.db
+.env.bak

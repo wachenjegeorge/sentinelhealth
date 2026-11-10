@@ -317,3 +317,115 @@ async def triage_alert(alert_id: str, payload: TriagePayload, request: Request):
                    "id": alert_id, "f": claims["facility_id"]})
 
     return {"ok": True, "action": payload.action, "new_status": payload.action}
+# ── Deep AI Report ──────────────────────────────────────
+from datetime import datetime
+
+
+@router.post("/report")
+async def generate_dept_report(request: Request):
+    """5-section AI strategic report for the dept head's department."""
+    claims = _require_dept_head(request)
+
+    async with with_tenant(claims["facility_id"], role="department_head",
+                           user_id=claims["sub"]) as session:
+        row = (await session.execute(text(
+            "SELECT primary_department FROM users WHERE id = :id"
+        ), {"id": claims["sub"]})).mappings().first()
+        dept = row["primary_department"] if row else "Unknown"
+
+        groups = (await session.execute(text("""
+            SELECT day, shift, n, p90_score, avg_fatigue, avg_heat
+            FROM agg_logs WHERE facility_id = :f AND department = :d
+            ORDER BY day DESC LIMIT 30
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+
+        queue = (await session.execute(text("""
+            SELECT status, ai_verdict FROM fatigue_confirmations
+            WHERE facility_id = :f AND department = :d
+              AND created_at > now() - interval '14 days'
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+
+        alerts = (await session.execute(text("""
+            SELECT alert_type, severity, shift, ai_protocol
+            FROM autonomous_alerts
+            WHERE facility_id = :f AND department = :d
+              AND status IN ('active','acknowledged','escalated')
+        """), {"f": claims["facility_id"], "d": dept})).mappings().all()
+
+    total = sum(g["n"] for g in groups) or 0
+    avg_wvi = (sum(float(g["p90_score"]) * g["n"] for g in groups) / total) if total else 0
+    avg_fat = (sum(float(g["avg_fatigue"]) * g["n"] for g in groups) / total) if total else 0
+    avg_heat = (sum(float(g["avg_heat"]) * g["n"] for g in groups) / total) if total else 0
+    pending = sum(1 for q in queue if q["status"] == "pending")
+    confirmed = sum(1 for q in queue if q["status"] == "confirmed")
+    outlier = sum(1 for q in queue if q["ai_verdict"] == "outlier")
+
+    alert_lines = "\n".join(
+        f"- {a['alert_type']} ({a['shift']}, {a['severity']}): {a['ai_protocol'][:80]}"
+        for a in alerts
+    ) or "None"
+
+    prompt = f"""You are the Clinical Operations AI for the {dept} department.
+
+DATA (last 30 days, {total} reports):
+- Avg WVI: {avg_wvi:.1f}/100
+- Avg fatigue: {avg_fat:.1f}/10
+- Avg heat: {avg_heat:.1f}/10
+- Queue: {pending} pending, {confirmed} confirmed, {outlier} AI-flagged outliers
+- Active alerts: {len(alerts)}
+
+Active alerts:
+{alert_lines}
+
+Write a strategic report in markdown with EXACTLY these 5 sections:
+
+## Executive Summary
+2-3 sentences. Is the department stable, at watch, or in crisis?
+
+## Team Health
+Fatigue and heat trends. Which shift is most at risk? Reference the numbers.
+
+## Verification Insights
+What do the {len(queue)} recent confirmations show? Are workers trending higher or lower?
+
+## Risk Drivers
+Which WVI component is dominating: Fatigue, Heat, Symptom, Staffing, or Biometric? Why?
+
+## Prescriptive Actions
+Four numbered actions, each with a named owner:
+1. Immediate (this shift)
+2. Short-term (this week)
+3. Medium-term (this month)
+4. Structural (this quarter)
+
+Be direct. Reference numbers. No filler like "monitor"."""
+
+    try:
+        res = await llm_client.chat([{"role": "user", "content": prompt}])
+        report = res["message"]["content"]
+        engine = "groq"
+    except Exception:
+        report = (
+            f"## Report Generation Unavailable\n\n"
+            f"AI temporarily offline. Raw metrics:\n\n"
+            f"- WVI: {avg_wvi:.1f}, Fatigue: {avg_fat:.1f}, Heat: {avg_heat:.1f}\n"
+            f"- {pending} pending, {confirmed} confirmed\n"
+            f"- {len(alerts)} active alerts\n\n"
+            f"Manual review recommended."
+        )
+        engine = "fallback"
+
+    return {
+        "department": dept,
+        "report": report,
+        "engine": engine,
+        "generated_at": str(datetime.now()),
+        "metrics": {
+            "total_reports": total,
+            "avg_wvi": round(avg_wvi, 1),
+            "avg_fatigue": round(avg_fat, 1),
+            "avg_heat": round(avg_heat, 1),
+            "pending": pending,
+            "active_alerts": len(alerts),
+        },
+    }

@@ -104,12 +104,27 @@
     </div>
     <div id="alert-list" class="space-y-2 max-h-[400px] overflow-y-auto pr-2"></div>
   </section>
+
+  <section class="card p-5 border-l-4 border-l-fuchsia-500">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <h2 class="card-title">AI Deep Report</h2>
+        <p class="text-[10px] text-slate-500 mt-1">5-section strategic analysis for your department</p>
+      </div>
+      <button id="gen-deep-report" onclick="generateDeepReport()" class="rounded-lg bg-fuchsia-600 hover:bg-fuchsia-500 px-4 py-2 text-xs font-bold text-white transition">
+        Generate Report
+      </button>
+    </div>
+    <div id="deep-report-body" class="hidden rounded-lg bg-slate-900/60 border border-slate-800 p-4 text-sm text-slate-300 leading-relaxed max-h-[600px] overflow-y-auto"></div>
+  </section>
+
 </main>
 
 <script src="/static/ui.js?v=131"></script>
 <script src="/static/auth.js?v=131"></script>
 <script src="/static/animations.js?v=131"></script>
 <script src="/static/admin-dept-head.js?v=131"></script>
+<script src="/static/assistant.js"></script>
   <script src="/static/glass.js" defer></script>
 </body>
 </html>
