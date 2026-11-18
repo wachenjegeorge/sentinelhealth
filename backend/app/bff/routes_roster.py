@@ -102,3 +102,18 @@ async def generate_strategy(payload: StrategyPayload, request: Request):
                 "roster": f"Review {staff_names.split(',')[0] if staff else 'staff'} recent fatigue scores; if >8, swap with a fresh day-shift worker."
             }
     return strategy
+
+@router.get("/workers")
+async def list_roster_workers(request: Request):
+    """Workers at this facility."""
+    claims = request.state.claims
+    if claims["role"] not in ("county_officer", "hospital_head"):
+        raise HTTPException(403, "officer or hospital_head required")
+    async with with_tenant(claims["facility_id"], role=claims["role"], user_id=claims["sub"]) as session:
+        rows = (await session.execute(text("""
+            SELECT id, username, full_name, primary_department
+            FROM users
+            WHERE facility_id = :f AND role = 'worker' AND active
+            ORDER BY COALESCE(primary_department, 'zzz'), COALESCE(full_name, username)
+        """), {"f": claims["facility_id"]})).mappings().all()
+    return {"workers": [dict(r) for r in rows]}
