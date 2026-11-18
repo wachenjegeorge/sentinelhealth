@@ -35,6 +35,14 @@ class Log(Base):
     risk_score: Mapped[float] = mapped_column(Numeric(5, 1), nullable=False)
     risk_level: Mapped[str] = mapped_column(String(12), nullable=False)
     components: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    cognitive_fatigue: Mapped[int | None] = mapped_column(SmallInteger)
+    mental_clarity: Mapped[int | None] = mapped_column(SmallInteger)
+    stress: Mapped[int | None] = mapped_column(SmallInteger)
+    sleep_quality: Mapped[int | None] = mapped_column(SmallInteger)
+    sleep_hours: Mapped[float | None] = mapped_column(Numeric(4, 1))
+    cwi: Mapped[float | None] = mapped_column(Numeric(5, 1))
+    cwi_level: Mapped[str | None] = mapped_column(String(12))
+    cognitive_components: Mapped[dict | None] = mapped_column(JSONB)
     client_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(

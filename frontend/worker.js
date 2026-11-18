@@ -31,7 +31,7 @@
   }
 
   // Sliders
-  ["fatigue","heat","hours"].forEach(id => {
+  ["fatigue","heat","hours","cfatigue","clarity","stress","sleepq","sleeph"].forEach(id => {
     const input = $(id), val = $(id + "Val");
     input.oninput = () => val.textContent = input.value;
   });
@@ -55,7 +55,12 @@
     const payload = {
       department: $("department").value, shift: $("shift").value,
       fatigue: Number($("fatigue").value), heat_exposure: Number($("heat").value),
-      hours_worked: Number($("hours").value), symptoms: Array.from(selectedSymptoms)
+      hours_worked: Number($("hours").value), symptoms: Array.from(selectedSymptoms),
+      cognitive_fatigue: Number($("cfatigue")?.value ?? 5),
+      mental_clarity: Number($("clarity")?.value ?? 5),
+      stress: Number($("stress")?.value ?? 5),
+      sleep_quality: Number($("sleepq")?.value ?? 3),
+      sleep_hours: Number($("sleeph")?.value ?? 7),
     };
     try {
       const res = await Auth.apiFetch("/api/bff/sync/checkins", {
@@ -70,8 +75,10 @@
       $("result").style.borderColor = color;
       $("result").innerHTML = `<h3 class="text-lg font-bold" style="color:${color}">Check-in Recorded: ${data.level} Risk</h3><p class="text-sm text-slate-400 mt-1">WVI Score: ${Math.round(data.personal_score ?? data.score ?? data.wvi ?? 0)}</p>`;
       
-      fetchCoach(); // Refresh AI Coach with new warning status
+      fetchCoach();
+      loadCognitiveBaseline();
       loadDashboard();
+      if (window._onCheckinSuccess) window._onCheckinSuccess();
       selectedSymptoms.clear();
       document.querySelectorAll("#symptoms .chip").forEach(c => c.dataset.active = "false");
     } catch (err) {
@@ -84,18 +91,36 @@
   // AI Coach & Early Warning
   async function fetchCoach() {
     const msgEl = $("coach-msg");
+    const sigEl = $("coach-signals");
+    const actEl = $("coach-action");
     const warningEl = $("early-warning");
     const warningText = $("early-warning-text");
     try {
       const res = await Auth.apiFetch("/api/bff/worker/coach");
       if (res.ok) {
         const data = await res.json();
-        msgEl.innerHTML = data.message.replace(/\n/g, '<br>');
+        const narrative = data.narrative || data.message || "";
+        msgEl.innerHTML = narrative.replace(/\n/g, '<br>');
         msgEl.classList.remove("animate-pulse");
-        
+
+        if (sigEl) {
+          const signals = data.signals || [];
+          sigEl.innerHTML = signals.map(s => {
+            const sev = s.severity === "high"
+              ? "border-rose-500/60 text-rose-300"
+              : "border-amber-500/50 text-amber-300";
+            return `<span class="px-2 py-1 rounded-full border ${sev} text-[10px] font-medium">${s.label}: ${s.delta}</span>`;
+          }).join("");
+        }
+
+        if (actEl && data.action) {
+          actEl.classList.remove("hidden");
+          actEl.innerHTML = "💡 " + data.action;
+        }
+
         if (data.is_warning) {
           warningEl.classList.remove("hidden");
-          warningText.textContent = data.message;
+          warningText.textContent = narrative;
         } else {
           warningEl.classList.add("hidden");
         }
@@ -103,6 +128,43 @@
     } catch (e) {
       msgEl.textContent = "Stay hydrated and monitor your fatigue today.";
       msgEl.classList.remove("animate-pulse");
+    }
+  }
+
+  async function loadCognitiveBaseline() {
+    const card = $("cog-baseline");
+    const body = $("cog-baseline-body");
+    const meta = $("cog-baseline-meta");
+    if (!card || !body) return;
+    try {
+      const res = await Auth.apiFetch("/api/bff/cognitive/baseline");
+      if (!res.ok) return;
+      const d = await res.json();
+      card.classList.remove("hidden");
+      if (!d.ready) {
+        meta.textContent = d.sample_count + "/" + d.min_samples + " samples";
+        body.innerHTML = '<p class="text-slate-500">Complete ' + (d.min_samples - d.sample_count) + ' more cognitive check-ins to unlock baseline deltas.</p>';
+        return;
+      }
+      meta.textContent = d.sample_count + " samples · " + d.window_days + "d window";
+      const deltas = d.deltas || {};
+      const rows = [
+        ["Mental fatigue", "cognitive_fatigue", "pts", true],
+        ["Mental clarity", "mental_clarity", "pts", false],
+        ["Stress", "stress", "pts", true],
+        ["Sleep quality", "sleep_quality", "pts", false],
+        ["Sleep hours", "sleep_hours", "h", true],
+        ["CWI", "cwi", "", true],
+      ];
+      body.innerHTML = rows.filter(r => deltas[r[1]] !== undefined).map(([label, key, unit, worseUp]) => {
+        const v = deltas[key];
+        const isBad = worseUp ? v > 0 : v < 0;
+        const color = Math.abs(v) < 0.5 ? "text-slate-400" : (isBad ? "text-rose-400" : "text-emerald-400");
+        const arrow = v > 0 ? "↑" : v < 0 ? "↓" : "→";
+        return '<div class="flex justify-between py-0.5"><span>' + label + '</span><span class="' + color + ' font-mono">' + arrow + ' ' + (v > 0 ? "+" : "") + v + unit + '</span></div>';
+      }).join("") || '<p class="text-slate-500">No deltas to show yet.</p>';
+    } catch (e) {
+      console.error("baseline load failed", e);
     }
   }
 
@@ -230,5 +292,169 @@
   // Init
   loadDepartments();
   fetchCoach();
+  loadCognitiveBaseline();
   loadDashboard();
+  // ═══════════════════════════════════════════════════════════════
+  // LIVE SYSTEM — pill, polling, AI intervention
+  // ═══════════════════════════════════════════════════════════════
+  let _liveTimer = null;
+  let _liveVisible = true;
+  let _lastCheckinCount = -1;
+  let _currentIntervention = null;
+
+  // Pause polling when tab hidden (battery)
+  document.addEventListener("visibilitychange", () => {
+    _liveVisible = !document.hidden;
+    if (_liveVisible) startLivePolling();
+  });
+
+  function startLivePolling() {
+    if (_liveTimer) clearInterval(_liveTimer);
+    _liveTimer = setInterval(pollLive, 10000);
+    pollLive(); // immediate first poll
+  }
+
+  async function pollLive() {
+    if (!_liveVisible) return;
+    try {
+      const res = await Auth.apiFetch("/api/bff/cognitive/live");
+      if (!res.ok) return;
+      const d = await res.json();
+
+      // Update live pill
+      const pill = $("live-pill");
+      const label = $("live-label");
+      if (pill && label) {
+        pill.classList.remove("hidden");
+        pill.classList.add("flex");
+        const ago = d.last_checkin_at
+          ? Math.round((Date.now() - new Date(d.last_checkin_at).getTime()) / 1000)
+          : null;
+        let txt = "Live";
+        if (ago !== null) {
+          if (ago < 60) txt = "Live · just now";
+          else if (ago < 3600) txt = "Live · " + Math.round(ago/60) + "m ago";
+          else txt = "Live · " + Math.round(ago/3600) + "h ago";
+        }
+        if (d.pending_escalations > 0) {
+          txt += " · " + d.pending_escalations + " pending review";
+        }
+        label.textContent = txt;
+      }
+
+      // Detect new check-in → refresh intervention
+      if (_lastCheckinCount >= 0 && d.checkin_count > _lastCheckinCount) {
+        refreshIntervention();
+      }
+      _lastCheckinCount = d.checkin_count;
+    } catch (e) { /* silent */ }
+  }
+
+  // ── AI intervention ──
+  async function loadIntervention() {
+    const card = $("ai-intervention-card");
+    if (!card) return;
+    try {
+      const res = await Auth.apiFetch("/api/bff/cognitive/intervention");
+      if (!res.ok) return;
+      const d = await res.json();
+      _currentIntervention = d.intervention;
+
+      card.classList.remove("hidden");
+      const titleEl = $("ai-int-title");
+      const whyEl = $("ai-int-why");
+      const howEl = $("ai-int-how");
+      const durEl = $("ai-int-duration");
+      const evEl = $("ai-int-evidence");
+      const patEl = $("ai-int-patterns");
+
+      if (d.patterns.length === 0) {
+        titleEl.textContent = "No strong patterns yet";
+        whyEl.textContent = "Complete more cognitive check-ins to unlock AI pattern analysis. Currently analyzed: " + d.days_analyzed + " day(s).";
+        howEl.textContent = "Keep checking in. Your patterns will emerge within a few days.";
+        durEl.textContent = "";
+        evEl.textContent = "";
+        patEl.innerHTML = "";
+        return;
+      }
+
+      titleEl.textContent = d.intervention.title || "One small thing";
+      whyEl.textContent = d.intervention.why || "";
+      howEl.textContent = d.intervention.how || "";
+      durEl.textContent = "⏱ " + (d.intervention.duration || "");
+      evEl.textContent = d.intervention.evidence_hint || "";
+
+      patEl.innerHTML = d.patterns.slice(0, 4).map(p => {
+        const sev = p.severity === "high" ? "border-rose-500/60 text-rose-300 bg-rose-500/10"
+                  : p.severity === "moderate" ? "border-amber-500/50 text-amber-300 bg-amber-500/10"
+                  : "border-emerald-500/50 text-emerald-300 bg-emerald-500/10";
+        return `<span class="px-2 py-0.5 rounded-full border ${sev} text-[9px] font-medium">${p.label}</span>`;
+      }).join("");
+    } catch (e) { console.error("intervention load failed", e); }
+  }
+
+  async function refreshIntervention() {
+    const btn = $("ai-int-refresh");
+    if (btn) { btn.disabled = true; btn.textContent = "🔄 Thinking..."; }
+    try {
+      // Invalidate cache on backend by posting skip → forces regen on next GET
+      await Auth.apiFetch("/api/bff/cognitive/intervention/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() },
+        body: JSON.stringify({ action: "skip", note: "refresh" })
+      });
+      await loadIntervention();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = "🔄 Refresh"; }
+    }
+  }
+
+  async function acceptIntervention() {
+    try {
+      await Auth.apiFetch("/api/bff/cognitive/intervention/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() },
+        body: JSON.stringify({ action: "accept" })
+      });
+      UI.toast("Logged. Your patterns will refine as you try things.");
+      // Dim the card
+      const card = $("ai-intervention-card");
+      if (card) card.style.opacity = "0.6";
+      setTimeout(() => { if (card) card.style.opacity = "1"; }, 3000);
+    } catch (e) { UI.toast("Could not record", "error"); }
+  }
+
+  async function skipIntervention() {
+    try {
+      await Auth.apiFetch("/api/bff/cognitive/intervention/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json",
+                   "Idempotency-Key": crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() },
+        body: JSON.stringify({ action: "skip" })
+      });
+      await loadIntervention();
+      UI.toast("Noted. Fresh suggestion coming.");
+    } catch (e) { UI.toast("Could not record", "error"); }
+  }
+
+  // Expose to onclick handlers (IIFE scope)
+  window.acceptIntervention = acceptIntervention;
+  window.skipIntervention = skipIntervention;
+  window.refreshIntervention = refreshIntervention;
+
+  // ── Kick off on load ──
+  startLivePolling();
+  setTimeout(loadIntervention, 800);
+
+  // Refresh intervention + baseline when a check-in succeeds
+  const _origSubmitResultHook = window._onCheckinSuccess;
+  window._onCheckinSuccess = function() {
+    loadIntervention();
+    loadCognitiveBaseline();
+    pollLive();
+    if (_origSubmitResultHook) _origSubmitResultHook();
+  };
+
 })();

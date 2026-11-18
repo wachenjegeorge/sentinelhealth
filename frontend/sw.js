@@ -1,4 +1,4 @@
-const CACHE = "sentinel-v1";
+const CACHE = "sentinel-v3";
 const ASSETS = [
   "/", "/worker", "/admin",
   "/static/auth.js", "/static/worker.js", "/static/admin.js",

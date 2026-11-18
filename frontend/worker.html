@@ -32,6 +32,10 @@
       </div>
     </div>
     <div class="flex items-center gap-2">
+      <span id="live-pill" class="hidden items-center gap-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] text-emerald-300 font-medium">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="live-label">Live</span>
+      </span>
       <a href="/profile" class="rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 px-3 py-1.5 text-xs font-medium transition">Profile</a>
       <button onclick="Auth.logout()" class="rounded-lg border border-slate-700 hover:border-rose-500 hover:text-rose-400 px-3 py-1.5 text-xs font-medium transition">Sign out</button>
     </div>
@@ -58,6 +62,34 @@
       <div>
         <p class="text-[10px] uppercase tracking-widest text-indigo-400 font-bold mb-1">Personal AI Health Coach</p>
         <p id="coach-msg" class="text-sm text-slate-200 leading-relaxed animate-pulse">Analyzing your recent health trends...</p>
+        <div id="coach-signals" class="flex flex-wrap gap-2 mt-3"></div>
+        <div id="coach-action" class="hidden mt-3 p-2 rounded bg-indigo-900/30 border border-indigo-800/50 text-xs text-indigo-200"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI PATTERN & INTERVENTION -->
+  <div id="ai-intervention-card" class="card p-5 border-fuchsia-800/40 bg-gradient-to-br from-slate-900 via-slate-900 to-fuchsia-950/20 relative overflow-hidden hidden">
+    <div class="absolute top-0 right-0 w-40 h-40 bg-fuchsia-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="flex items-start justify-between gap-3 relative z-10">
+      <div class="flex items-start gap-3 flex-1">
+        <div class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-fuchsia-500/20 text-fuchsia-300 text-xl">✨</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] uppercase tracking-widest text-fuchsia-400 font-bold mb-1">AI Pattern Insight</p>
+          <p id="ai-int-title" class="text-base font-bold text-white leading-snug">Analyzing your patterns...</p>
+          <p id="ai-int-why" class="text-xs text-slate-400 mt-1"></p>
+          <div id="ai-int-how" class="mt-3 p-3 rounded-lg bg-slate-950/60 border border-slate-800/60 text-xs text-slate-200 leading-relaxed whitespace-pre-line"></div>
+          <div class="flex items-center gap-3 mt-3">
+            <span id="ai-int-duration" class="text-[10px] text-fuchsia-300 font-medium"></span>
+            <span id="ai-int-evidence" class="text-[10px] text-slate-600 italic"></span>
+          </div>
+          <div id="ai-int-patterns" class="flex flex-wrap gap-1.5 mt-3"></div>
+          <div class="flex gap-2 mt-3">
+            <button onclick="acceptIntervention()" class="rounded-md bg-fuchsia-600 hover:bg-fuchsia-500 px-3 py-1.5 text-[11px] font-bold text-white transition">Try this</button>
+            <button onclick="skipIntervention()" class="rounded-md border border-slate-700 hover:border-slate-500 px-3 py-1.5 text-[11px] font-medium text-slate-400 transition">Not for me</button>
+            <button onclick="refreshIntervention()" id="ai-int-refresh" class="rounded-md border border-slate-700 hover:border-fuchsia-500 px-3 py-1.5 text-[11px] font-medium text-slate-400 transition ml-auto">🔄 Refresh</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -93,6 +125,15 @@
   <!-- TAB: CHECK-IN -->
   <section id="tab-checkin" class="space-y-4">
     <div id="result" class="hidden"></div>
+
+    <div id="cog-baseline" class="card p-4 border-indigo-800/40 hidden">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-[10px] uppercase tracking-widest text-indigo-400 font-bold">🧠 Your Cognitive Baseline</p>
+        <span class="text-[10px] text-slate-500" id="cog-baseline-meta"></span>
+      </div>
+      <div id="cog-baseline-body" class="text-xs text-slate-400">Loading...</div>
+    </div>
+
     <form id="form" class="card p-6 space-y-5">
       <div class="grid gap-3 sm:grid-cols-2">
         <div>
@@ -132,6 +173,49 @@
         </div>
         <input type="range" id="hours" min="0" max="24" step="0.5" value="8" />
       </div>
+      <details class="rounded-lg border border-indigo-800/40 bg-indigo-950/10 p-3">
+        <summary class="cursor-pointer text-xs uppercase tracking-widest text-indigo-300 font-bold">
+          🧠 Cognitive wellness (optional — improves your baseline)
+        </summary>
+        <div class="mt-4 space-y-3">
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="card-title">Mental fatigue</label>
+              <span class="text-sm font-semibold text-indigo-300"><span id="cfatigueVal">5</span>/10</span>
+            </div>
+            <input type="range" id="cfatigue" min="1" max="10" value="5" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="card-title">Mental clarity</label>
+              <span class="text-sm font-semibold text-indigo-300"><span id="clarityVal">5</span>/10</span>
+            </div>
+            <input type="range" id="clarity" min="1" max="10" value="5" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="card-title">Stress</label>
+              <span class="text-sm font-semibold text-indigo-300"><span id="stressVal">5</span>/10</span>
+            </div>
+            <input type="range" id="stress" min="1" max="10" value="5" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="card-title">Sleep quality</label>
+              <span class="text-sm font-semibold text-indigo-300"><span id="sleepqVal">3</span>/5</span>
+            </div>
+            <input type="range" id="sleepq" min="1" max="5" value="3" />
+          </div>
+          <div>
+            <div class="flex justify-between mb-1.5">
+              <label class="card-title">Sleep hours</label>
+              <span class="text-sm font-semibold text-indigo-300"><span id="sleephVal">7</span> h</span>
+            </div>
+            <input type="range" id="sleeph" min="0" max="12" step="0.5" value="7" />
+          </div>
+        </div>
+      </details>
+
       <div>
         <label class="card-title block mb-2">Symptoms (optional)</label>
         <div id="symptoms" class="flex flex-wrap gap-2"></div>

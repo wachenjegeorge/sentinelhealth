@@ -42,3 +42,13 @@ fly.toml.local
 *.sqlite3
 *.db
 .env.bak
+
+# Pitch assets (local only)
+*.pptx
+*.mp3
+fill_template.py
+generate_voiceover.py
+make_deck.py
+make_submission_deck.py
+sample_*.mp3
+sentinelhealth_voiceover.mp3
